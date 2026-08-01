@@ -1,0 +1,13 @@
+**/__pycache__
+**/.venv
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+.git
+.env
+
+# test & coverage artifacts
+tests/
+coverage.xml
+htmlcov/
+.pytest_cache/
