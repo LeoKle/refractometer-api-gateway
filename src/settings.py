@@ -1,8 +1,10 @@
 from pydantic import SecretStr
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    DB_URL: str = ""
+
     JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
 
     OAUTH_URL: str = ""
@@ -10,3 +12,8 @@ class Settings(BaseSettings):
     OAUTH_CLIENT_SECRET: SecretStr = SecretStr("")
     OAUTH_REDIRECT_URL: str = "http://localhost:5173/api/v1/auth/callback"
     OAUTH_SCOPES: str = "openid email"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )

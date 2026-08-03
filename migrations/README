@@ -1,0 +1,49 @@
+# Database Migrations
+
+## Project Setup
+
+### 1. Configure database URL
+
+Set the DB_URL in .env
+
+### 2. Apply all migrations
+
+```bash
+uv run alembic upgrade head
+```
+
+---
+
+## Making Model Changes
+
+Whenever you add, remove, or modify a model, follow this workflow:
+
+### 1. Make your changes
+
+Edit the relevant file(s) under `src/repositories/models/`.
+
+### 2. Generate a migration
+
+```bash
+uv run alembic revision --autogenerate -m "short description of change"
+```
+
+A new file will appear in `migrations/versions/`. **Open it and review** the `upgrade()` and `downgrade()` functions before continuing.
+
+> [!WARNING]
+> Autogenerate doesn't catch everything - renames, custom constraints, and some index changes may need to be written manually.
+
+### 3. Apply the migration
+
+```bash
+uv run alembic upgrade head
+```
+
+### 4. Commit the migration file
+
+The generated file must be committed alongside your model change so other developers can pick it up with `alembic upgrade head`.
+
+```bash
+git add migrations/versions/
+git commit -m "migration: short description of change"
+```
