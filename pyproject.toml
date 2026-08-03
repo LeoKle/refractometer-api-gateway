@@ -8,6 +8,7 @@ dependencies = [
     "dependency-injector>=4.49.1",
     "fastapi>=0.141.1",
     "jose>=1.0.0",
+    "sqlmodel>=0.0.39",
     "uvicorn[standard]>=0.52.0",
 ]
 
