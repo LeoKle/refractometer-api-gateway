@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     DB_URL: str = ""
 
+    COOKIE_NAME_ACCESS: str = "refractometer_access"
+    COOKIE_NAME_REFRESH: str = "refractometer_refresh"
     JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
 
     OAUTH_URL: str = ""
