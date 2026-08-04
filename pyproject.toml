@@ -8,8 +8,9 @@ dependencies = [
     "alembic>=1.18.5",
     "dependency-injector>=4.49.1",
     "fastapi>=0.141.1",
-    "jose>=1.0.0",
     "psycopg2-binary>=2.9.12",
+    "pydantic-settings>=2.14.2",
+    "python-jose>=3.5.0",
     "sqlmodel>=0.0.39",
     "uvicorn[standard]>=0.52.0",
 ]
