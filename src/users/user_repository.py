@@ -1,7 +1,7 @@
 import uuid
 
-from auth.user_model import User as UserDomain
 from containers.database import SessionFactory
+from users.user import User as UserDomain
 from users.user_model import UserModel as UserSQL
 from users.user_repository_interface import UserRepositoryInterface
 

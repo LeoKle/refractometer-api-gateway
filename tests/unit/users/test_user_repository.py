@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlmodel import SQLModel
 
-from auth.user_model import User
+from users.user import User
 from users.user_repository import SQLUserRepository
 
 pytestmark = pytest.mark.unit
