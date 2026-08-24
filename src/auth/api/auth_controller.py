@@ -39,7 +39,7 @@ def login(
     ],
     redirect_to: str | None = None,
 ):
-    url = auth_service.get_redirect_url(redirect_to)
+    url = auth_service.start_login(redirect_to)
     return RedirectResponse(url)
 
 

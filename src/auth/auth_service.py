@@ -14,7 +14,7 @@ class AuthService(AuthServiceInterface):
         self.oauth_provider = oauth_provider
         self.user_repo = user_repo
 
-    def get_redirect_url(self, state: str | None) -> str:
+    def start_login(self, state: str | None) -> str:
         return self.oauth_provider.get_redirect_url(state)
 
     def authenticate(self, code: str) -> AuthModel:
