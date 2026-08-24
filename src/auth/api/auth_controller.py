@@ -37,9 +37,9 @@ def login(
         AuthServiceInterface,
         Depends(Provide[DependencyContainer.auth_service]),
     ],
-    state: str | None = None,
+    redirect_to: str | None = None,
 ):
-    url = auth_service.get_redirect_url(state)
+    url = auth_service.get_redirect_url(redirect_to)
     return RedirectResponse(url)
 
 
