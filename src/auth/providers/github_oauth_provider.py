@@ -1,7 +1,7 @@
 from urllib.parse import urlencode
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from auth.interfaces.oauth_provider_interface import (
     AuthResponseData,
@@ -31,7 +31,7 @@ class GitHubOAuthProvider(OAuthProviderInterface):
     def __init__(self):
         self.TOKEN_URL = "https://github.com/login/oauth/access_token"
         self.client_id = settings.OAUTH_CLIENT_ID
-        self.client_secret = settings.OAUTH_CLIENT_SECRET
+        self.client_secret: SecretStr = settings.OAUTH_CLIENT_SECRET
         self.redirect_uri = settings.OAUTH_REDIRECT_URL
         self.scopes = settings.OAUTH_SCOPES
         self.oauth_url = settings.OAUTH_URL
@@ -54,7 +54,7 @@ class GitHubOAuthProvider(OAuthProviderInterface):
     def exchange_code(self, code: str) -> AuthResponseData:
         payload = {
             "client_id": self.client_id,
-            "client_secret": self.client_secret,
+            "client_secret": self.client_secret.get_secret_value(),
             "redirect_uri": self.redirect_uri,
             "scope": self.scopes,
             "code": code,
