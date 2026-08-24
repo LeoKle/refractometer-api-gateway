@@ -11,7 +11,7 @@ class DependencyContainer(containers.DeclarativeContainer):
     config = providers.Configuration()
     config.from_pydantic(Settings())
 
-    db = providers.Singleton(Database, db_url=config.db_url, db_echo=config.db_echo)
+    db = providers.Singleton(Database, db_url=config.DB_URL, db_echo=config.DB_ECHO)
 
     session_factory = db.provided.session
 

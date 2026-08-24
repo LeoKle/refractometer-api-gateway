@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     ENV: Literal["dev", "prod"] = "dev"
 
     DB_URL: str = ""
+    DB_ECHO: bool = False
 
     COOKIE_NAME_ACCESS: str = "refractometer_access"
     COOKIE_NAME_REFRESH: str = "refractometer_refresh"
