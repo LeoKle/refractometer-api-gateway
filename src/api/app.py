@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from auth.api import auth_controller
 from containers.dependencies import DependencyContainer
 
 app = FastAPI(title="Refractometer API Gateway")
@@ -11,4 +12,8 @@ def health():
 
 
 container = DependencyContainer()
-container.wire(modules=[])
+container.wire(
+    modules=[
+        auth_controller,
+    ]
+)
