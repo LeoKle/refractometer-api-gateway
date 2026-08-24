@@ -12,6 +12,7 @@ SRC_DIR = os.path.join(BASE_DIR, "src")  # ruff: ignore[os-path-join]
 sys.path.insert(0, BASE_DIR)
 sys.path.insert(0, SRC_DIR)
 
+from src.users.user_model import UserModel
 from src.settings import Settings  # ruff: ignore[module-import-not-at-top-of-file]
 
 settings = Settings()
