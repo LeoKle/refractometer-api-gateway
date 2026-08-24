@@ -24,3 +24,5 @@ class DependencyContainer(containers.DeclarativeContainer):
     auth_service = providers.Factory(
         AuthService, oauth_provider=oauth_provider, user_repo=user_repository
     )
+
+    user_repository = providers.Factory(SQLUserRepository, session_factory=session_factory)
