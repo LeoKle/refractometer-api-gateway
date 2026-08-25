@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     COOKIE_NAME_ACCESS: str = "refractometer_access"
     COOKIE_NAME_REFRESH: str = "refractometer_refresh"
+    COOKIE_NAME_OAUTH_TRANSACTION: str = "refractometer_oauth"
 
     @property
     def COOKIES_SECURE(self) -> bool:

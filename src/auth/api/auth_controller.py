@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from typing import Annotated
 
@@ -10,12 +11,20 @@ from auth.api.auth_responses import UserInfoResponse
 from auth.generate_jwt import create_access_token, create_refresh_token, decode_token
 from auth.guards import get_user
 from auth.interfaces.auth_service_interface import AuthModel, AuthServiceInterface
+from auth.oauth_transaction import (
+    TRANSACTION_TTL_MINUTES,
+    OAuthTransaction,
+    decode_transaction,
+    encode_transaction,
+)
 from containers.dependencies import DependencyContainer
 from settings import settings
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
 
 router = APIRouter(prefix="/auth")
+
+TRANSACTION_COOKIE_PATH = "/api/v1/auth"
 
 
 def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
@@ -30,6 +39,22 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
     response.set_cookie(settings.COOKIE_NAME_REFRESH, refresh, **cookie_defaults)
 
 
+def _set_transaction_cookie(response: Response, transaction: OAuthTransaction) -> None:
+    response.set_cookie(
+        settings.COOKIE_NAME_OAUTH_TRANSACTION,
+        encode_transaction(transaction),
+        httponly=True,
+        secure=settings.COOKIES_SECURE,
+        samesite="lax",
+        path=TRANSACTION_COOKIE_PATH,
+        max_age=TRANSACTION_TTL_MINUTES * 60,
+    )
+
+
+def _clear_transaction_cookie(response: Response) -> None:
+    response.delete_cookie(settings.COOKIE_NAME_OAUTH_TRANSACTION, path=TRANSACTION_COOKIE_PATH)
+
+
 @router.get("/login")
 @inject
 def login(
@@ -39,8 +64,12 @@ def login(
     ],
     redirect_to: str | None = None,
 ):
-    url = auth_service.start_login(redirect_to)
-    return RedirectResponse(url)
+    url, transaction = auth_service.start_login(redirect_to)
+
+    response = RedirectResponse(url)
+    _set_transaction_cookie(response, transaction)
+
+    return response
 
 
 @router.get("/callback")
@@ -53,12 +82,33 @@ def auth_callback(
         Depends(Provide[DependencyContainer.auth_service]),
     ],
     state: str | None = None,
+    oauth_transaction: Annotated[
+        str | None, Cookie(alias=settings.COOKIE_NAME_OAUTH_TRANSACTION)
+    ] = None,
 ):
-    token: AuthModel = auth_service.authenticate(code)
+    if oauth_transaction is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing OAuth transaction",
+        )
 
-    response = RedirectResponse(state) if state else RedirectResponse("/")
+    transaction = decode_transaction(oauth_transaction)
+
+    if transaction is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth transaction",
+        )
+
+    if not state or not secrets.compare_digest(state, transaction.state):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state")
+
+    token: AuthModel = auth_service.authenticate(code, transaction.code_verifier)
+
+    response = RedirectResponse(transaction.redirect_to)
 
     _set_auth_cookies(response, token.access, token.refresh)
+    _clear_transaction_cookie(response)
 
     return response
 
