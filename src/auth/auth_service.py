@@ -5,6 +5,7 @@ from auth.interfaces.oauth_provider_interface import (
     OAuthProviderInterface,
     UserData,
 )
+from auth.oauth_transaction import OAuthTransaction, create_transaction
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
 
@@ -14,11 +15,15 @@ class AuthService(AuthServiceInterface):
         self.oauth_provider = oauth_provider
         self.user_repo = user_repo
 
-    def start_login(self, state: str | None) -> str:
-        return self.oauth_provider.get_redirect_url(state)
+    def start_login(self, redirect_to: str | None) -> tuple[str, OAuthTransaction]:
+        transaction, code_challenge = create_transaction(redirect_to)
 
-    def authenticate(self, code: str) -> AuthModel:
-        auth_data: AuthResponseData = self.oauth_provider.exchange_code(code)
+        url = self.oauth_provider.get_redirect_url(transaction.state, code_challenge)
+
+        return url, transaction
+
+    def authenticate(self, code: str, code_verifier: str) -> AuthModel:
+        auth_data: AuthResponseData = self.oauth_provider.exchange_code(code, code_verifier)
         user_data: UserData = self.oauth_provider.get_user_data(auth_data.access_token)
 
         return self._upsert_user_and_generate_tokens(user_data)
