@@ -8,6 +8,7 @@ from auth.interfaces.oauth_provider_interface import (
     OAuthProviderInterface,
     UserData,
 )
+from auth.oauth_transaction import PKCECodeChallenge
 from settings import settings
 
 
@@ -36,12 +37,18 @@ class GitHubOAuthProvider(OAuthProviderInterface):
         self.scopes = settings.OAUTH_SCOPES
         self.oauth_url = settings.OAUTH_URL
 
-    def get_redirect_url(self, state: str | None) -> str:
+    def get_redirect_url(
+        self,
+        state: str,
+        code_challenge: PKCECodeChallenge,
+    ) -> str:
         params = {
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "scope": self.scopes,
             "response_type": "code",
+            "code_challenge": code_challenge.code_challenge,
+            "code_challenge_method": code_challenge.code_challenge_method,
         }
 
         if state:
@@ -51,13 +58,14 @@ class GitHubOAuthProvider(OAuthProviderInterface):
 
         return f"{self.oauth_url}/oauth/authorize?{query_string}"
 
-    def exchange_code(self, code: str) -> AuthResponseData:
+    def exchange_code(self, code: str, code_verifier: str) -> AuthResponseData:
         payload = {
             "client_id": self.client_id,
             "client_secret": self.client_secret.get_secret_value(),
             "redirect_uri": self.redirect_uri,
             "scope": self.scopes,
             "code": code,
+            "code_verifier": code_verifier,
             "grant_type": "authorization_code",
         }
 

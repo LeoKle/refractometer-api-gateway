@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from auth.oauth_transaction import PKCECodeChallenge
+
 
 @dataclass
 class AuthResponseData:
@@ -20,10 +22,14 @@ class UserData:
 
 class OAuthProviderInterface(ABC):
     @abstractmethod
-    def get_redirect_url(self, state: str | None) -> str: ...
+    def get_redirect_url(
+        self,
+        state: str,
+        code_challenge: PKCECodeChallenge,
+    ) -> str: ...
 
     @abstractmethod
-    def exchange_code(self, code: str) -> AuthResponseData: ...
+    def exchange_code(self, code: str, code_verifier: str) -> AuthResponseData: ...
 
     @abstractmethod
     def get_user_data(self, access_token: str) -> UserData: ...
