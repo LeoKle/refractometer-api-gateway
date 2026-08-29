@@ -1,18 +1,10 @@
-"""
-Unit tests for auth/generate_jwt.py
-
-Pure unit-level tests - no FastAPI app, no DB, no network. Only dependency
-is `settings.SECRET_KEY`, which we pin via monkeypatch so tests are
-deterministic and independent of whatever .env is loaded locally.
-"""
-
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from pydantic import SecretStr
 import pytest
 from jose import JWTError, jwt
+from pydantic import SecretStr
 
 from auth.generate_jwt import (
     ALGORITHM,
