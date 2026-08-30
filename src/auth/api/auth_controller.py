@@ -18,7 +18,7 @@ from auth.oauth_transaction import (
     encode_transaction,
 )
 from containers.dependencies import DependencyContainer
-from settings import settings
+from settings import get_settings
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
 
@@ -31,20 +31,20 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
     """Helper to set both auth cookies consistently."""
     cookie_defaults = {
         "httponly": True,
-        "secure": settings.COOKIES_SECURE,
+        "secure": get_settings().COOKIES_SECURE,
         "samesite": "lax",
         "path": "/",
     }
-    response.set_cookie(settings.COOKIE_NAME_ACCESS, access, **cookie_defaults)
-    response.set_cookie(settings.COOKIE_NAME_REFRESH, refresh, **cookie_defaults)
+    response.set_cookie(get_settings().COOKIE_NAME_ACCESS, access, **cookie_defaults)
+    response.set_cookie(get_settings().COOKIE_NAME_REFRESH, refresh, **cookie_defaults)
 
 
 def _set_transaction_cookie(response: Response, transaction: OAuthTransaction) -> None:
     response.set_cookie(
-        settings.COOKIE_NAME_OAUTH_TRANSACTION,
+        get_settings().COOKIE_NAME_OAUTH_TRANSACTION,
         encode_transaction(transaction),
         httponly=True,
-        secure=settings.COOKIES_SECURE,
+        secure=get_settings().COOKIES_SECURE,
         samesite="lax",
         path=TRANSACTION_COOKIE_PATH,
         max_age=TRANSACTION_TTL_MINUTES * 60,
@@ -52,7 +52,9 @@ def _set_transaction_cookie(response: Response, transaction: OAuthTransaction) -
 
 
 def _clear_transaction_cookie(response: Response) -> None:
-    response.delete_cookie(settings.COOKIE_NAME_OAUTH_TRANSACTION, path=TRANSACTION_COOKIE_PATH)
+    response.delete_cookie(
+        get_settings().COOKIE_NAME_OAUTH_TRANSACTION, path=TRANSACTION_COOKIE_PATH
+    )
 
 
 @router.get("/login")
@@ -83,7 +85,7 @@ def auth_callback(
     ],
     state: str | None = None,
     oauth_transaction: Annotated[
-        str | None, Cookie(alias=settings.COOKIE_NAME_OAUTH_TRANSACTION)
+        str | None, Cookie(alias=get_settings().COOKIE_NAME_OAUTH_TRANSACTION)
     ] = None,
 ):
     if oauth_transaction is None:
@@ -132,7 +134,7 @@ def auth_refresh(
         UserRepositoryInterface,
         Depends(Provide[DependencyContainer.user_repository]),
     ],
-    refresh_token: Annotated[str | None, Cookie(alias=settings.COOKIE_NAME_REFRESH)] = None,
+    refresh_token: Annotated[str | None, Cookie(alias=get_settings().COOKIE_NAME_REFRESH)] = None,
 ):
     if refresh_token is None:
         raise HTTPException(
@@ -170,5 +172,5 @@ def auth_refresh(
 
 @router.post("/logout")
 def logout(response: Response):
-    response.delete_cookie(settings.COOKIE_NAME_ACCESS, path="/")
-    response.delete_cookie(settings.COOKIE_NAME_REFRESH, path="/")
+    response.delete_cookie(get_settings().COOKIE_NAME_ACCESS, path="/")
+    response.delete_cookie(get_settings().COOKIE_NAME_REFRESH, path="/")

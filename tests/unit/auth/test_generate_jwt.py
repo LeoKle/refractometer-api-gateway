@@ -12,7 +12,7 @@ from auth.generate_jwt import (
     create_refresh_token,
     decode_token,
 )
-from settings import settings
+from settings import get_settings
 from users.user import User
 
 TEST_SECRET = SecretStr("supersecret")
@@ -22,7 +22,7 @@ TEST_SECRET_RAW = TEST_SECRET.get_secret_value()
 @pytest.fixture(autouse=True)
 def pinned_secret(monkeypatch):
     """Every test in this file runs against a known, fixed secret."""
-    monkeypatch.setattr(settings, "JWT_SECRET_KEY", TEST_SECRET)
+    monkeypatch.setattr(get_settings(), "JWT_SECRET_KEY", TEST_SECRET)
 
 
 @pytest.fixture

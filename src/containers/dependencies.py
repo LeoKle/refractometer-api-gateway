@@ -3,13 +3,13 @@ from dependency_injector import containers, providers
 from auth.auth_service import AuthService
 from auth.providers.github_oauth_provider import GitHubOAuthProvider
 from containers.database import Database
-from settings import Settings
+from settings import get_settings
 from users.user_repository import SQLUserRepository
 
 
 class DependencyContainer(containers.DeclarativeContainer):
-    config = providers.Configuration()
-    config.from_pydantic(Settings())
+    settings = providers.Singleton(get_settings)
+    config = settings.provided
 
     db = providers.Singleton(Database, db_url=config.DB_URL, db_echo=config.DB_ECHO)
 

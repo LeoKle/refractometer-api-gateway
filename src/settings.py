@@ -1,13 +1,21 @@
-from typing import Literal
+from enum import StrEnum
+from functools import lru_cache
 
 from pydantic import SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings as PydanticBaseSettings
+from pydantic_settings import SettingsConfigDict
 
 
-class Settings(BaseSettings):
-    ENV: Literal["dev", "prod"] = "dev"
+class EnvType(StrEnum):
+    test: str = "test"
+    dev: str = "dev"
+    prod: str = "prod"
 
-    DB_URL: str = ""
+
+class BaseSettings(PydanticBaseSettings):
+    ENV: EnvType = EnvType.prod
+
+    DB_URL: str
     DB_ECHO: bool = False
 
     COOKIE_NAME_ACCESS: str = "refractometer_access"
@@ -16,14 +24,14 @@ class Settings(BaseSettings):
 
     @property
     def COOKIES_SECURE(self) -> bool:
-        return self.ENV == "prod"
+        return EnvType.prod == self.ENV
 
     JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
 
-    OAUTH_URL: str = ""
-    OAUTH_CLIENT_ID: str | None = None
-    OAUTH_CLIENT_SECRET: SecretStr = SecretStr("")
-    OAUTH_REDIRECT_URL: str = "http://localhost:5173/api/v1/auth/callback"
+    OAUTH_URL: str
+    OAUTH_CLIENT_ID: str
+    OAUTH_CLIENT_SECRET: SecretStr
+    OAUTH_REDIRECT_URL: str
     OAUTH_SCOPES: str = "openid email"
 
     model_config = SettingsConfigDict(
@@ -32,4 +40,42 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()
+class TestSettings(BaseSettings):
+    ENV: EnvType = EnvType.test
+    DB_URL: str = ""
+
+    JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
+
+    OAUTH_URL: str = ""
+    OAUTH_CLIENT_ID: str = ""
+    OAUTH_CLIENT_SECRET: SecretStr = SecretStr("")
+    OAUTH_REDIRECT_URL: str = ""
+
+
+class DevSettings(BaseSettings):
+    ENV: EnvType = EnvType.dev
+    DB_URL: str = "postgresql://refractometer:password@localhost:5432/refractometer-api-gateway"
+
+    JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
+
+    OAUTH_URL: str = ""
+    OAUTH_CLIENT_ID: str = ""
+    OAUTH_CLIENT_SECRET: SecretStr = SecretStr("")
+    OAUTH_REDIRECT_URL: str = "http://localhost:5173/api/v1/auth/callback"
+
+
+class ProdSettings(BaseSettings):
+    ENV: EnvType = EnvType.prod
+
+
+settings_mapping = {
+    EnvType.dev: DevSettings,
+    EnvType.test: TestSettings,
+    EnvType.prod: ProdSettings,
+}
+
+
+@lru_cache
+def get_settings() -> BaseSettings:
+    app_env = BaseSettings().ENV
+    return settings_mapping[app_env]()

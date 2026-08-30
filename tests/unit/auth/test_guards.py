@@ -85,7 +85,7 @@ class TestGetUserPayloadValidation:
         from jose import jwt
 
         from auth.generate_jwt import ALGORITHM
-        from settings import settings
+        from settings import get_settings
 
         token = jwt.encode(
             {
@@ -93,7 +93,7 @@ class TestGetUserPayloadValidation:
                 "exp": datetime.now(UTC) + timedelta(minutes=10),
                 # no user_id
             },
-            settings.JWT_SECRET_KEY.get_secret_value(),
+            get_settings().JWT_SECRET_KEY.get_secret_value(),
             algorithm=ALGORITHM,
         )
         repo = FakeUserRepository([regular_user])
@@ -108,7 +108,7 @@ class TestGetUserPayloadValidation:
         from jose import jwt
 
         from auth.generate_jwt import ALGORITHM
-        from settings import settings
+        from settings import get_settings
 
         token = jwt.encode(
             {
@@ -116,7 +116,7 @@ class TestGetUserPayloadValidation:
                 "type": "access",
                 "exp": datetime.now(UTC) + timedelta(minutes=10),
             },
-            settings.JWT_SECRET_KEY.get_secret_value(),
+            get_settings().JWT_SECRET_KEY.get_secret_value(),
             algorithm=ALGORITHM,
         )
         repo = FakeUserRepository([regular_user])

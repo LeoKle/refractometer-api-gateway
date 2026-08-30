@@ -9,7 +9,7 @@ from auth.interfaces.oauth_provider_interface import (
     UserData,
 )
 from auth.oauth_transaction import PKCECodeChallenge
-from settings import settings
+from settings import get_settings
 
 
 class GithubUserResponse(BaseModel):
@@ -30,6 +30,7 @@ class GithubEmailResponse(BaseModel):
 
 class GitHubOAuthProvider(OAuthProviderInterface):
     def __init__(self):
+        settings = get_settings()
         self.TOKEN_URL = "https://github.com/login/oauth/access_token"
         self.client_id = settings.OAUTH_CLIENT_ID
         self.client_secret: SecretStr = settings.OAUTH_CLIENT_SECRET

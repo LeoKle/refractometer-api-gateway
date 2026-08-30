@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from settings import settings
+from settings import get_settings
 
 ALGORITHM = "HS256"
 TRANSACTION_TYPE = "oauth_transaction"
@@ -69,7 +69,7 @@ def encode_transaction(transaction: OAuthTransaction) -> str:
             "exp": datetime.now(UTC) + timedelta(minutes=TRANSACTION_TTL_MINUTES),
             "type": TRANSACTION_TYPE,
         },
-        settings.JWT_SECRET_KEY.get_secret_value(),
+        get_settings().JWT_SECRET_KEY.get_secret_value(),
         algorithm=ALGORITHM,
     )
 
@@ -77,7 +77,7 @@ def encode_transaction(transaction: OAuthTransaction) -> str:
 def decode_transaction(token: str) -> OAuthTransaction | None:
     try:
         payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM]
+            token, get_settings().JWT_SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM]
         )
     except JWTError:
         return None

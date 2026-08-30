@@ -7,7 +7,7 @@ from jose import JWTError
 
 from auth.generate_jwt import decode_token
 from containers.dependencies import DependencyContainer
-from settings import settings
+from settings import get_settings
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
 
@@ -18,7 +18,7 @@ def get_user(
         UserRepositoryInterface,
         Depends(Provide(DependencyContainer.user_repository)),
     ],
-    access_token: Annotated[str | None, Cookie(alias=settings.COOKIE_NAME_ACCESS)] = None,
+    access_token: Annotated[str | None, Cookie(alias=get_settings().COOKIE_NAME_ACCESS)] = None,
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
