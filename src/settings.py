@@ -1,7 +1,7 @@
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings as PydanticBaseSettings
 from pydantic_settings import SettingsConfigDict
 
@@ -25,6 +25,10 @@ class BaseSettings(PydanticBaseSettings):
         return EnvType.prod == self.ENV
 
     JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
+    JWT_ISSUER: str
+    JWT_AUDIENCE: str
+    JWT_ACCESS_TOKEN_TTL: int = Field(default=10, description="TTL in minutes")
+    JWT_REFRESH_TOKEN_TTL: int = Field(default=30, description="TTL in days")
 
     OAUTH_URL: str
     OAUTH_CLIENT_ID: str
@@ -43,6 +47,8 @@ class TestSettings(BaseSettings):
     DB_URL: str = ""
 
     JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
+    JWT_ISSUER: str = "gateway-refractometer"
+    JWT_AUDIENCE: str = "api-refractometer"
 
     OAUTH_URL: str = ""
     OAUTH_CLIENT_ID: str = ""
@@ -55,6 +61,8 @@ class DevSettings(BaseSettings):
     DB_URL: str = "postgresql://refractometer:password@localhost:5432/refractometer-api-gateway"
 
     JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
+    JWT_ISSUER: str = "gateway-refractometer"
+    JWT_AUDIENCE: str = "api-refractometer"
 
     OAUTH_URL: str = ""
     OAUTH_CLIENT_ID: str = ""
