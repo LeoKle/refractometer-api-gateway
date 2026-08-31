@@ -36,6 +36,6 @@ class AuthService(AuthServiceInterface):
             user = self.user_repo.create(user)
 
         return AuthModel(
-            access=JsonWebToken.access(user_id=str(user.id)).encode(),
-            refresh=JsonWebToken.refresh(user_id=str(user.id)).encode(),
+            access=JsonWebToken.access(user_id=user.id).encode(),
+            refresh=JsonWebToken.refresh(user_id=user.id).encode(),
         )
