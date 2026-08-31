@@ -1,15 +1,20 @@
 from urllib.parse import urlencode
 
 import httpx
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, ValidationError
 
 from auth.interfaces.oauth_provider_interface import (
     AuthResponseData,
+    OAuthExchangeError,
+    OAuthNetworkError,
     OAuthProviderInterface,
+    OAuthUserDataError,
     UserData,
 )
 from auth.oauth_transaction import PKCECodeChallenge
 from settings import get_settings
+
+REQUEST_TIMEOUT = 10.0
 
 
 class GithubUserResponse(BaseModel):
@@ -19,13 +24,12 @@ class GithubUserResponse(BaseModel):
     name: str | None
 
 
-class GithubEmailResponse(BaseModel):
-    """the required data from /user/email"""
+class GitHubEmailObject(BaseModel):
+    """a single entry from /user/emails"""
 
-    class EmailObject(BaseModel):
-        email: str
-        primary: bool
-        verified: bool
+    email: str
+    primary: bool
+    verified: bool
 
 
 class GitHubOAuthProvider(OAuthProviderInterface):
@@ -68,54 +72,81 @@ class GitHubOAuthProvider(OAuthProviderInterface):
             "grant_type": "authorization_code",
         }
 
-        with httpx.Client() as client:
-            response = client.post(
-                self.TOKEN_URL, data=payload, headers={"Accept": "application/json"}
+        try:
+            with httpx.Client(timeout=REQUEST_TIMEOUT) as client:
+                response = client.post(
+                    self.TOKEN_URL, data=payload, headers={"Accept": "application/json"}
+                )
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPStatusError as err:
+            msg = f"GitHub rejected the code exchange (status {err.response.status_code})"
+            raise OAuthExchangeError(msg) from err
+        except httpx.HTTPError as err:
+            msg = "Could not reach GitHub to exchange code"
+            raise OAuthNetworkError(msg) from err
+        except ValueError as err:  # response.json() failed to parse
+            msg = "GitHub returned a non-JSON response"
+            raise OAuthExchangeError(msg) from err
+
+        if "error" in data:
+            msg = (
+                f"GitHub rejected the code exchange: {data.get('error_description', data['error'])}"
             )
-            response.raise_for_status()
+            raise OAuthExchangeError(msg)
 
-        data = response.json()
-
-        return AuthResponseData(
-            token_type=data["token_type"],
-            access_token=data["access_token"],
-            expires_in=data.get("expires_in"),
-            refresh_token=data.get("refresh_token"),
-        )
+        try:
+            return AuthResponseData(
+                token_type=data["token_type"],
+                access_token=data["access_token"],
+                expires_in=data.get("expires_in"),
+                refresh_token=data.get("refresh_token"),
+            )
+        except (KeyError, ValidationError) as err:
+            msg = f"GitHub's token response was missing an expected field: {err}"
+            raise OAuthExchangeError(msg) from err
 
     def get_user_data(self, access_token: str) -> UserData:
-        with httpx.Client() as client:
-            user_response = client.get(
-                "https://api.github.com/user",
-                headers={
-                    "Accept": "application/json",
-                    "Authorization": f"Bearer {access_token}",
-                },
-            )
-            user_response.raise_for_status()
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
 
-            user = GithubUserResponse(**user_response.json())
+        try:
+            with httpx.Client(timeout=REQUEST_TIMEOUT) as client:
+                user_response = client.get("https://api.github.com/user", headers=headers)
+                user_response.raise_for_status()
+                raw_user = user_response.json()
 
-            email_response = client.get(
-                "https://api.github.com/user/emails",
-                headers={
-                    "Accept": "application/json",
-                    "Authorization": f"Bearer {access_token}",
-                },
-            )
-            email_response.raise_for_status()
-            raw_emails = email_response.json()
-            emails = [GithubEmailResponse.EmailObject(**e) for e in raw_emails]
+                email_response = client.get("https://api.github.com/user/emails", headers=headers)
+                email_response.raise_for_status()
+                raw_emails = email_response.json()
+        except httpx.HTTPStatusError as err:
+            msg = f"GitHub rejected the user data request (status {err.response.status_code})"
+            raise OAuthUserDataError(msg) from err
+        except httpx.HTTPError as err:
+            msg = "Could not reach GitHub to fetch user data"
+            raise OAuthNetworkError(msg) from err
+        except ValueError as err:
+            msg = "GitHub returned a non-JSON response"
+            raise OAuthUserDataError(msg) from err
 
-        verified_emails = [e for e in emails if e.verified]
+        try:
+            user = GithubUserResponse(**raw_user)
+            emails = [GitHubEmailObject(**e) for e in raw_emails]
+        except ValidationError as err:
+            msg = f"Unexpected shape from GitHub's user API: {err}"
+            raise OAuthUserDataError(msg) from err
 
-        email = next((e.email for e in verified_emails if e.primary), None)
+        email = next((e.email for e in emails if e.primary and e.verified), None)
 
-        user_data = UserData(
+        if email is None:
+            msg = "GitHub account has no verified primary email visible to this app"
+            raise OAuthUserDataError(msg)
+
+        return UserData(
             provider_id=str(user.id),
             email=email,
             name=user.name,
-            raw={"user": user.model_dump(), "emails": raw_emails},
+            raw={"user": raw_user, "emails": raw_emails},
         )
-
-        return user_data

@@ -4,6 +4,22 @@ from dataclasses import dataclass
 from auth.oauth_transaction import PKCECodeChallenge
 
 
+class OAuthError(Exception):
+    """Base for all provider-facing OAuth failures."""
+
+
+class OAuthNetworkError(OAuthError):
+    """Could not reach the provider at all (connection, timeout, DNS)."""
+
+
+class OAuthExchangeError(OAuthError):
+    """The provider rejected or malformed-responded to the code exchange."""
+
+
+class OAuthUserDataError(OAuthError):
+    """The provider's user/email data was missing, malformed, or unusable."""
+
+
 @dataclass
 class AuthResponseData:
     token_type: str
