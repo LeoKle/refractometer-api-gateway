@@ -48,12 +48,10 @@ class GitHubOAuthProvider(OAuthProviderInterface):
             "redirect_uri": self.redirect_uri,
             "scope": self.scopes,
             "response_type": "code",
+            "state": state,
             "code_challenge": code_challenge.code_challenge,
             "code_challenge_method": code_challenge.code_challenge_method,
         }
-
-        if state:
-            params["state"] = state
 
         query_string = urlencode(params)
 
