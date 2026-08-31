@@ -13,6 +13,8 @@ class EnvType(StrEnum):
 
 
 class BaseSettings(PydanticBaseSettings):
+    ENV: EnvType = EnvType.prod
+
     DB_URL: str
     DB_ECHO: bool = False
 
@@ -44,6 +46,7 @@ class BaseSettings(PydanticBaseSettings):
 
 class TestSettings(BaseSettings):
     ENV: EnvType = EnvType.test
+
     DB_URL: str = ""
 
     JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
@@ -58,6 +61,7 @@ class TestSettings(BaseSettings):
 
 class DevSettings(BaseSettings):
     ENV: EnvType = EnvType.dev
+
     DB_URL: str = "postgresql://refractometer:password@localhost:5432/refractometer-api-gateway"
 
     JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
@@ -83,6 +87,11 @@ settings_mapping = {
 
 class _EnvSelector(PydanticBaseSettings):
     ENV: EnvType = EnvType.prod
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
 
 
 @lru_cache
