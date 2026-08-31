@@ -1,13 +1,25 @@
-from auth.interfaces.auth_service_interface import AuthModel, AuthServiceInterface
+import logging
+
+from auth.interfaces.auth_service_interface import (
+    AuthenticationError,
+    AuthModel,
+    AuthProviderUnavailableError,
+    AuthServiceInterface,
+)
 from auth.interfaces.oauth_provider_interface import (
     AuthResponseData,
+    OAuthExchangeError,
+    OAuthNetworkError,
     OAuthProviderInterface,
+    OAuthUserDataError,
     UserData,
 )
 from auth.jwt import JsonWebToken
 from auth.oauth_transaction import OAuthTransaction, create_transaction
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService(AuthServiceInterface):
@@ -23,8 +35,23 @@ class AuthService(AuthServiceInterface):
         return url, transaction
 
     def authenticate(self, code: str, code_verifier: str) -> AuthModel:
-        auth_data: AuthResponseData = self.oauth_provider.exchange_code(code, code_verifier)
-        user_data: UserData = self.oauth_provider.get_user_data(auth_data.access_token)
+        try:
+            auth_data: AuthResponseData = self.oauth_provider.exchange_code(code, code_verifier)
+        except OAuthNetworkError as err:
+            logger.exception("AuthService: provider unreachable during code exchange")
+            raise AuthProviderUnavailableError from err
+        except OAuthExchangeError as err:
+            logger.warning("AuthService: code exchange rejected: %s", err)
+            raise AuthenticationError from err
+
+        try:
+            user_data: UserData = self.oauth_provider.get_user_data(auth_data.access_token)
+        except OAuthNetworkError as err:
+            logger.exception("AuthService: provider unreachable during user data fetch")
+            raise AuthProviderUnavailableError from err
+        except OAuthUserDataError as err:
+            logger.warning("AuthService: user data rejected: %s", err)
+            raise AuthenticationError from err
 
         return self._upsert_user_and_generate_tokens(user_data)
 
