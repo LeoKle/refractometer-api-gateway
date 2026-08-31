@@ -5,12 +5,14 @@ from typing import Annotated
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.responses import RedirectResponse
-from jose import JWTError
 
 from auth.api.auth_responses import UserInfoResponse
-from auth.generate_jwt import create_access_token, create_refresh_token, decode_token
 from auth.guards import get_user
 from auth.interfaces.auth_service_interface import AuthModel, AuthServiceInterface
+from auth.jwt import (
+    InvalidTokenError,
+    JsonWebToken,
+)
 from auth.oauth_transaction import (
     TRANSACTION_TTL_MINUTES,
     OAuthTransaction,
@@ -142,21 +144,14 @@ def auth_refresh(
         )
 
     try:
-        payload = decode_token(refresh_token, expected_type="refresh")
-    except JWTError as e:
+        token = JsonWebToken.decode(refresh_token)
+    except InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         ) from e
 
-    user_id = payload.get("sub")
-
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
-        )
-
     try:
-        user_uuid = uuid.UUID(user_id)
+        user_uuid = uuid.UUID(token.sub)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
@@ -167,7 +162,11 @@ def auth_refresh(
     if not user.access:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing access")
 
-    _set_auth_cookies(response, create_access_token(user), create_refresh_token(user))
+    _set_auth_cookies(
+        response,
+        JsonWebToken.access(user_id=str(user.id)).encode(),
+        JsonWebToken.refresh(user_id=str(user.id)).encode(),
+    )
 
 
 @router.post("/logout")

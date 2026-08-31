@@ -3,9 +3,8 @@ from typing import Annotated
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import Cookie, Depends, HTTPException, status
-from jose import JWTError
 
-from auth.generate_jwt import decode_token
+from auth.jwt import InvalidTokenError, JsonWebToken
 from containers.dependencies import DependencyContainer
 from settings import get_settings
 from users.user import User
@@ -30,20 +29,17 @@ def get_user(
         raise credentials_exception
 
     try:
-        payload = decode_token(access_token, expected_type="access")
-    except JWTError as exc:
-        raise credentials_exception from exc
+        token = JsonWebToken.decode(access_token)
+    except InvalidTokenError:
+        raise credentials_exception from None
 
-    user_id: str | None = payload.get("sub")
-    if user_id is None:
-        raise credentials_exception
-    user = user_repository.get_by_id(uuid.UUID(user_id))
+    if token.token_type != "access":
+        raise credentials_exception from None
+
+    user = user_repository.get_by_id(token.sub)
 
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="User not found in database",
-        )
+        raise credentials_exception from None
 
     if not user.access:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")

@@ -1,10 +1,10 @@
-from auth.generate_jwt import create_access_token, create_refresh_token
 from auth.interfaces.auth_service_interface import AuthModel, AuthServiceInterface
 from auth.interfaces.oauth_provider_interface import (
     AuthResponseData,
     OAuthProviderInterface,
     UserData,
 )
+from auth.jwt import JsonWebToken
 from auth.oauth_transaction import OAuthTransaction, create_transaction
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
@@ -36,6 +36,6 @@ class AuthService(AuthServiceInterface):
             user = self.user_repo.create(user)
 
         return AuthModel(
-            access=create_access_token(user),
-            refresh=create_refresh_token(user),
+            access=JsonWebToken.access(user_id=str(user.id)).encode(),
+            refresh=JsonWebToken.refresh(user_id=str(user.id)).encode(),
         )
