@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 from jose import JWTError, jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from settings import get_settings
 
@@ -15,9 +15,9 @@ TRANSACTION_TTL_MINUTES = 10
 
 
 class OAuthTransaction(BaseModel):
-    state: str
-    code_verifier: str
-    redirect_to: str
+    state: str = Field(..., description="The CSRF state")
+    code_verifier: str = Field(..., description="The PKCE code verifier")
+    redirect_to: str = Field(..., description="The requested redirect target during login")
 
 
 class PKCECodeChallenge(BaseModel):
