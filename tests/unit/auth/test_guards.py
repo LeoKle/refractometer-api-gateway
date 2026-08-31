@@ -74,10 +74,10 @@ class TestGetUserTokenTypeEnforcement:
 
 
 class TestGetUserPayloadValidation:
-    def test_token_without_user_id_claim_raises_401(self, regular_user):
+    def test_token_without_sub_claim_raises_401(self, regular_user):
         """
         decode_token succeeds (valid signature, valid type) but the
-        `user_id` claim itself is missing - guards against a token that's
+        `sub` claim itself is missing - guards against a token that's
         structurally valid but semantically incomplete.
         """
         from datetime import UTC, datetime, timedelta
@@ -91,7 +91,7 @@ class TestGetUserPayloadValidation:
             {
                 "type": "access",
                 "exp": datetime.now(UTC) + timedelta(minutes=10),
-                # no user_id
+                # no sub
             },
             get_settings().JWT_SECRET_KEY.get_secret_value(),
             algorithm=ALGORITHM,
@@ -101,8 +101,8 @@ class TestGetUserPayloadValidation:
             get_user(user_repository=repo, access_token=token)
         assert exc_info.value.status_code == 401
 
-    def test_malformed_user_id_raises(self, regular_user):
-        """user_id claim present but not a valid UUID -> uuid.UUID() raises ValueError."""
+    def test_malformed_sub_raises(self, regular_user):
+        """sub claim present but not a valid UUID -> uuid.UUID() raises ValueError."""
         from datetime import UTC, datetime, timedelta
 
         from jose import jwt
@@ -112,7 +112,7 @@ class TestGetUserPayloadValidation:
 
         token = jwt.encode(
             {
-                "user_id": "not-a-uuid",
+                "sub": "not-a-uuid",
                 "type": "access",
                 "exp": datetime.now(UTC) + timedelta(minutes=10),
             },
@@ -127,7 +127,7 @@ class TestGetUserPayloadValidation:
 class TestGetUserAuthorization:
     def test_user_not_found_in_db_raises_500(self, regular_user):
         """Token is valid but the user has since been deleted from the DB."""
-        repo = FakeUserRepository([])  # empty - user_id won't resolve
+        repo = FakeUserRepository([])  # empty - sub won't resolve
         token = create_access_token(regular_user)
         with pytest.raises(HTTPException) as exc_info:
             get_user(user_repository=repo, access_token=token)

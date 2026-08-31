@@ -11,7 +11,7 @@ ALGORITHM = "HS256"
 def create_access_token(user: User, validity_minutes: int = 10) -> str:
     return jwt.encode(
         {
-            "user_id": str(user.id),
+            "sub": str(user.id),
             "exp": datetime.now(UTC) + timedelta(minutes=validity_minutes),
             "type": "access",
         },
@@ -23,7 +23,7 @@ def create_access_token(user: User, validity_minutes: int = 10) -> str:
 def create_refresh_token(user: User, validity_minutes: int = 31 * 24 * 60) -> str:
     return jwt.encode(
         {
-            "user_id": str(user.id),
+            "sub": str(user.id),
             "exp": datetime.now(UTC) + timedelta(minutes=validity_minutes),
             "type": "refresh",
         },

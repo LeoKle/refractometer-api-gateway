@@ -46,7 +46,7 @@ class TestCreateAccessToken:
         token = create_access_token(user)
         payload = decode_raw(token)
 
-        assert payload["user_id"] == str(user.id)
+        assert payload["sub"] == str(user.id)
         assert payload["type"] == "access"
         assert "exp" in payload
 
@@ -82,16 +82,16 @@ class TestCreateAccessToken:
         token2 = create_access_token(user)
         assert token1 != token2
 
-    def test_different_users_get_different_user_ids(self):
+    def test_different_users_get_different_subs(self):
         user_a = User(email="a@example.com", name="A")
         user_b = User(email="b@example.com", name="B")
 
         payload_a = decode_raw(create_access_token(user_a))
         payload_b = decode_raw(create_access_token(user_b))
 
-        assert payload_a["user_id"] != payload_b["user_id"]
-        assert payload_a["user_id"] == str(user_a.id)
-        assert payload_b["user_id"] == str(user_b.id)
+        assert payload_a["sub"] != payload_b["sub"]
+        assert payload_a["sub"] == str(user_a.id)
+        assert payload_b["sub"] == str(user_b.id)
 
 
 class TestCreateRefreshToken:
@@ -99,7 +99,7 @@ class TestCreateRefreshToken:
         token = create_refresh_token(user)
         payload = decode_raw(token)
 
-        assert payload["user_id"] == str(user.id)
+        assert payload["sub"] == str(user.id)
         assert payload["type"] == "refresh"
         assert "exp" in payload
 
@@ -131,7 +131,7 @@ class TestDecodeTokenHappyPath:
     def test_decodes_valid_access_token(self, user):
         token = create_access_token(user)
         payload = decode_token(token)
-        assert payload["user_id"] == str(user.id)
+        assert payload["sub"] == str(user.id)
         assert payload["type"] == "access"
 
     def test_decodes_valid_refresh_token(self, user):
@@ -176,7 +176,7 @@ class TestDecodeTokenTypeEnforcement:
     def test_missing_type_claim_rejected_when_type_expected(self, user):
         forged = jwt.encode(
             {
-                "user_id": str(user.id),
+                "sub": str(user.id),
                 "exp": datetime.now(UTC) + timedelta(minutes=10),
                 # no "type" claim at all
             },
@@ -196,7 +196,7 @@ class TestDecodeTokenTamperResistance:
     def test_token_signed_with_wrong_secret_rejected(self, user):
         forged = jwt.encode(
             {
-                "user_id": str(user.id),
+                "sub": str(user.id),
                 "exp": datetime.now(UTC) + timedelta(minutes=10),
                 "type": "access",
             },
@@ -207,7 +207,7 @@ class TestDecodeTokenTamperResistance:
             decode_token(forged)
 
     def test_tampered_payload_rejected(self, user):
-        """Flip the user_id in the token body without re-signing -> must fail."""
+        """Flip the sub in the token body without re-signing -> must fail."""
         token = create_access_token(user)
         header_b64, payload_b64, sig_b64 = token.split(".")
 
@@ -236,7 +236,7 @@ class TestDecodeTokenTamperResistance:
         header = b64url(json.dumps({"alg": "none", "typ": "JWT"}).encode())
         payload = b64url(
             json.dumps({
-                "user_id": str(user.id),
+                "sub": str(user.id),
                 "exp": int((datetime.now(UTC) + timedelta(minutes=10)).timestamp()),
                 "type": "access",
             }).encode()
@@ -261,7 +261,7 @@ class TestDecodeTokenTamperResistance:
         """
         forged = jwt.encode(
             {
-                "user_id": str(user.id),
+                "sub": str(user.id),
                 "exp": datetime.now(UTC) + timedelta(minutes=10),
                 "type": "access",
             },

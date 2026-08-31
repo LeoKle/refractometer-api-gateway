@@ -148,7 +148,7 @@ def auth_refresh(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         ) from e
 
-    user_id = payload.get("user_id")
+    user_id = payload.get("sub")
 
     if not user_id:
         raise HTTPException(

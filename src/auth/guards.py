@@ -34,7 +34,7 @@ def get_user(
     except JWTError as exc:
         raise credentials_exception from exc
 
-    user_id: str | None = payload.get("user_id")
+    user_id: str | None = payload.get("sub")
     if user_id is None:
         raise credentials_exception
     user = user_repository.get_by_id(uuid.UUID(user_id))
