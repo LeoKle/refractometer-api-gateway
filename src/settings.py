@@ -13,8 +13,6 @@ class EnvType(StrEnum):
 
 
 class BaseSettings(PydanticBaseSettings):
-    ENV: EnvType = EnvType.prod
-
     DB_URL: str
     DB_ECHO: bool = False
 
@@ -75,7 +73,11 @@ settings_mapping = {
 }
 
 
+class _EnvSelector(PydanticBaseSettings):
+    ENV: EnvType = EnvType.prod
+
+
 @lru_cache
 def get_settings() -> BaseSettings:
-    app_env = BaseSettings().ENV
+    app_env = _EnvSelector().ENV
     return settings_mapping[app_env]()
