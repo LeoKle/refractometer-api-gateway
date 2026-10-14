@@ -1,3 +1,5 @@
+import pytest
+
 from auth.oauth_transaction import (
     _code_challenge_from_verifier,
     _generate_code_verifier,
@@ -20,11 +22,29 @@ def test_code_challenge_from_verifier():
     assert code_verifier != code_challenge
 
 
-def test_get_safe_redirect_target_on_safe():
-    assert get_safe_redirect_target("/dashboard") == "/dashboard"
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "https://evil.com",
+        "//evil.com",
+        "/\\evil.com",
+        "\\\\evil.com",
+        "\\/evil.com",
+        " //evil.com",
+        "/\t/evil.com",
+        "javascript:alert(1)",
+        "evil.com",
+        "http:evil.com",
+        "/ok\r\nSet-Cookie: x=y",
+        "http://[bad",
+        None,
+        "",
+    ],
+)
+def test_rejects(bad):
+    assert get_safe_redirect_target(bad) == "/"
 
 
-def test_get_safe_redirect_target_on_malicious():
-    assert get_safe_redirect_target("https://malicious.com") == "/"
-    assert get_safe_redirect_target("https://malicious.com/test") == "/"
-    assert get_safe_redirect_target("//evil.com") == "/"
+@pytest.mark.parametrize("good", ["/", "/dashboard", "/a/b?x=1#frag"])
+def test_accepts(good):
+    assert get_safe_redirect_target(good) == good

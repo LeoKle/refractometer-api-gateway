@@ -2,7 +2,7 @@ import base64
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
@@ -37,13 +37,24 @@ def _code_challenge_from_verifier(code_verifier: str) -> str:
 
 
 def get_safe_redirect_target(redirect_to: str | None) -> str:
-    """Ensure requested redirect target is safe."""
-    if not redirect_to:
+    """Return redirect_to only if it is a same-origin absolute path, else return "/" """
+    if not redirect_to or not isinstance(redirect_to, str):
         return "/"
 
-    parsed = urlparse(redirect_to)
+    # Reject backslashes and control characters
+    if "\\" in redirect_to or any(ord(c) < 0x20 or ord(c) == 0x7F for c in redirect_to):
+        return "/"
 
-    if parsed.scheme or parsed.netloc or redirect_to.startswith("//"):
+    # Must be an absolute path, and not protocol-relative
+    if not redirect_to.startswith("/") or redirect_to.startswith("//"):
+        return "/"
+
+    try:
+        parsed = urlsplit(redirect_to)
+    except ValueError:
+        return "/"
+
+    if parsed.scheme or parsed.netloc:
         return "/"
 
     return redirect_to
