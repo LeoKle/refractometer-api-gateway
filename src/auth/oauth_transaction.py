@@ -31,7 +31,7 @@ def _generate_code_verifier() -> str:
 
 
 def _code_challenge_from_verifier(code_verifier: str) -> str:
-    """RFC 7636: code_challenge = BASE64URL-ENOCDE(SHA256(ASCII(code_verifier)))"""
+    """RFC 7636: code_challenge = BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))"""
     digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
