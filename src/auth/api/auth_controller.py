@@ -1,5 +1,4 @@
 import secrets
-import uuid
 from typing import Annotated
 
 from dependency_injector.wiring import Provide, inject
@@ -150,14 +149,7 @@ def auth_refresh(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         ) from e
 
-    try:
-        user_uuid = uuid.UUID(token.sub)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
-        ) from None
-
-    user = user_repository.get_by_id(user_uuid)
+    user = user_repository.get_by_id(token.sub)
 
     if not user.access:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing access")
