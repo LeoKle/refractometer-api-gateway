@@ -4,7 +4,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
-from jose import JWTError, jwt
+import jwt
 from pydantic import BaseModel, Field
 
 from settings import get_settings
@@ -90,7 +90,7 @@ def decode_transaction(token: str) -> OAuthTransaction | None:
         payload = jwt.decode(
             token, get_settings().JWT_SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM]
         )
-    except JWTError:
+    except jwt.PyJWTError:
         return None
 
     if payload.get("type") != TRANSACTION_TYPE:

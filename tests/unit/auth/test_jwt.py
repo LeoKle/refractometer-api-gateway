@@ -2,14 +2,16 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import jwt
 import pytest
-from jose import jwt
 from pydantic import SecretStr, ValidationError
 
 from auth.jwt import ALGORITHM, InvalidTokenError, JsonWebToken
 from settings import get_settings
 
-TEST_SECRET = SecretStr("supersecret")
+TEST_SECRET = SecretStr(
+    "test-secret-that-is-at-least-64-bytes-long-so-pyjwt-does-not-throw-warnings"
+)
 TEST_SECRET_RAW = TEST_SECRET.get_secret_value()
 TEST_ISSUER = "test-issuer"
 TEST_AUDIENCE = "test-audience"
@@ -177,7 +179,11 @@ class TestDecodeTamperResistance:
             JsonWebToken.decode(token)
 
     def test_token_signed_with_wrong_secret_rejected(self, user_id):
-        forged = jwt.encode(_claims(user_id), "a-completely-different-secret", algorithm=ALGORITHM)
+        forged = jwt.encode(
+            _claims(user_id),
+            "a-completely-different-secret-that-is-also-32-bytes-long",
+            algorithm=ALGORITHM,
+        )
         with pytest.raises(InvalidTokenError):
             JsonWebToken.decode(forged)
 

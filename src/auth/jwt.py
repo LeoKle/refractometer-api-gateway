@@ -2,7 +2,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
 from pydantic import BaseModel, ValidationError
 
 from settings import get_settings
@@ -46,7 +47,7 @@ class JsonWebToken(BaseModel):
             )
 
             return cls(**payload)
-        except (ValidationError, JWTError) as err:
+        except (ValidationError, PyJWTError) as err:
             raise InvalidTokenError() from err
 
     @classmethod
