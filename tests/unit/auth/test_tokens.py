@@ -135,7 +135,7 @@ class TestRefreshToken:
         payload = decode_raw(JsonWebToken.refresh(user_id).encode())
         exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
 
-        expected = before + timedelta(minutes=TEST_REFRESH_TTL)
+        expected = before + timedelta(days=TEST_REFRESH_TTL)
         assert abs((exp - expected).total_seconds()) < 10
 
     def test_refresh_token_is_distinguishable_from_access_token(self, user_id):

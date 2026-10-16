@@ -86,5 +86,5 @@ class JsonWebToken(BaseModel):
         return cls.create(
             user_id=user_id,
             token_type="refresh",
-            expires_in=timedelta(minutes=settings.JWT_REFRESH_TOKEN_TTL),
+            expires_in=timedelta(days=settings.JWT_REFRESH_TOKEN_TTL),
         )
