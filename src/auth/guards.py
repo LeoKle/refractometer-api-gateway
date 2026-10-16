@@ -1,10 +1,9 @@
-import uuid
 from typing import Annotated
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import Cookie, Depends, HTTPException, status
 
-from auth.jwt import InvalidTokenError, JsonWebToken
+from auth.tokens import InvalidTokenError, JsonWebToken
 from containers.dependencies import DependencyContainer
 from settings import get_settings
 from users.user import User

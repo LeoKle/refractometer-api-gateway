@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from auth.guards import get_admin, get_user
-from auth.jwt import InvalidTokenError, JsonWebToken
+from auth.tokens import InvalidTokenError, JsonWebToken
 from users.user import User
 
 

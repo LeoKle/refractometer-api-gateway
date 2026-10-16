@@ -14,8 +14,8 @@ from auth.interfaces.oauth_provider_interface import (
     OAuthUserDataError,
     UserData,
 )
-from auth.jwt import JsonWebToken
 from auth.oauth_transaction import OAuthTransaction, create_transaction
+from auth.tokens import JsonWebToken
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
 

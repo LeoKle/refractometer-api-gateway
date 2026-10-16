@@ -6,7 +6,7 @@ import jwt
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from auth.jwt import ALGORITHM, InvalidTokenError, JsonWebToken
+from auth.tokens import ALGORITHM, InvalidTokenError, JsonWebToken
 from settings import get_settings
 
 TEST_SECRET = SecretStr(

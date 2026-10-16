@@ -9,15 +9,15 @@ from fastapi.responses import RedirectResponse
 from auth.api.auth_responses import UserInfoResponse
 from auth.guards import get_user
 from auth.interfaces.auth_service_interface import AuthModel, AuthServiceInterface
-from auth.jwt import (
-    InvalidTokenError,
-    JsonWebToken,
-)
 from auth.oauth_transaction import (
     TRANSACTION_TTL_MINUTES,
     OAuthTransaction,
     decode_transaction,
     encode_transaction,
+)
+from auth.tokens import (
+    InvalidTokenError,
+    JsonWebToken,
 )
 from containers.dependencies import DependencyContainer
 from settings import get_settings
