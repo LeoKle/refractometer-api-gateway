@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import jwt
 from jwt import PyJWTError
@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 from settings import get_settings
 
 ALGORITHM = "HS256"
+REQUIRED_CLAIMS = ["iss", "sub", "aud", "iat", "exp", "jti"]
 
 
 class InvalidTokenError(Exception): ...
@@ -23,6 +24,7 @@ class JsonWebToken(BaseModel):
     aud: str
     iat: int
     exp: int
+    jti: UUID
     token_type: TokenType
 
     def encode(self) -> str:
@@ -35,7 +37,7 @@ class JsonWebToken(BaseModel):
         )
 
     @classmethod
-    def decode(cls, token: str) -> "JsonWebToken":
+    def decode(cls, token: str, expected_type: TokenType) -> "JsonWebToken":
         settings = get_settings()
 
         try:
@@ -44,11 +46,18 @@ class JsonWebToken(BaseModel):
                 settings.JWT_SECRET_KEY.get_secret_value(),
                 algorithms=[ALGORITHM],
                 audience=settings.JWT_AUDIENCE,
+                issuer=settings.JWT_ISSUER,
+                options={"require": REQUIRED_CLAIMS},
             )
 
-            return cls(**payload)
+            decoded = cls(**payload)
         except (ValidationError, PyJWTError) as err:
             raise InvalidTokenError() from err
+
+        if decoded.token_type != expected_type:
+            raise InvalidTokenError()
+
+        return decoded
 
     @classmethod
     def create(
@@ -66,6 +75,7 @@ class JsonWebToken(BaseModel):
             aud=settings.JWT_AUDIENCE,
             iat=int(now.timestamp()),
             exp=int((now + expires_in).timestamp()),
+            jti=uuid4(),
             token_type=token_type,
         )
 

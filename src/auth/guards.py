@@ -28,7 +28,7 @@ def get_user(
         raise credentials_exception
 
     try:
-        token = JsonWebToken.decode(access_token)
+        token = JsonWebToken.decode(access_token, "access")
     except InvalidTokenError:
         raise credentials_exception from None
 

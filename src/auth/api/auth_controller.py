@@ -144,7 +144,7 @@ def auth_refresh(
         )
 
     try:
-        token = JsonWebToken.decode(refresh_token)
+        token = JsonWebToken.decode(refresh_token, "refresh")
     except InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"

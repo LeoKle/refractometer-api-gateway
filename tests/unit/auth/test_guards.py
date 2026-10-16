@@ -79,6 +79,7 @@ class TestGetUserInvalidToken:
             iat=1,
             exp=2,
             token_type="refresh",
+            jti=uuid.uuid4(),
         )
 
         with (
@@ -108,6 +109,7 @@ class TestGetUserAuthorization:
             iat=1,
             exp=2,
             token_type="access",
+            jti=uuid.uuid4(),
         )
 
         with (
@@ -135,6 +137,7 @@ class TestGetUserAuthorization:
             iat=1,
             exp=2,
             token_type="access",
+            jti=uuid.uuid4(),
         )
 
         with (
@@ -162,6 +165,7 @@ class TestGetUserAuthorization:
             iat=1,
             exp=2,
             token_type="access",
+            jti=uuid.uuid4(),
         )
 
         with patch.object(
@@ -187,6 +191,7 @@ class TestGetUserAuthorization:
             iat=1,
             exp=2,
             token_type="access",
+            jti=uuid.uuid4(),
         )
 
         with patch.object(
