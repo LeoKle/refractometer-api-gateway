@@ -12,6 +12,7 @@ dependencies = [
     "psycopg2-binary>=2.9.12",
     "pydantic-settings>=2.14.2",
     "pyjwt>=2.15.1",
+    "refractometer-common-layer",
     "sqlmodel>=0.0.39",
     "uvicorn[standard]>=0.52.0",
 ]
@@ -63,3 +64,6 @@ testpaths = ["tests"]
 addopts = ["--cov-report=term", "--cov=src"]
 pythonpath = ["src", "."]
 markers = ["unit: unit tests", "integration: integration tests"]
+
+[tool.uv.sources]
+refractometer-common-layer = { git = "https://github.com/LeoKle/refractometer-common-layer", tag = "v0.2.3" }
