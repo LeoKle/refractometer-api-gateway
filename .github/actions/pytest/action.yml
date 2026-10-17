@@ -1,0 +1,20 @@
+name: "Run Pytest"
+description: "Run pytest for a given directory and test type"
+inputs:
+  directory:
+    description: "Directory where tests are located"
+    required: true
+  test_type:
+    description: "Test type to run (unit, integration, etc.)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run pytest
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: |
+        echo "Running ${{ inputs.test_type }} tests in ${{ inputs.directory }}..."
+        uv run pytest -m "${{ inputs.test_type }}" --maxfail=1 --disable-warnings --cov-append --cov-report=xml:coverage.xml || \
+        (e=$?; [ $e -eq 5 ] && echo "No tests collected, skipping" || exit $e)

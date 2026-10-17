@@ -1,0 +1,24 @@
+name: "Setup python project"
+description: "Sets up the python project using uv"
+inputs:
+  directory:
+    description: "path to the directory"
+    required: false
+    default: "."
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        cache-dependency-glob: "${{ inputs.directory }}/uv.lock"
+
+    - name: "Set up Python"
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: "${{ inputs.directory }}/pyproject.toml"
+        
+    - name: Install the project
+      shell: bash
+      run: cd ${{ inputs.directory }} && uv sync --all-extras --dev

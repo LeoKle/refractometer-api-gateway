@@ -1,0 +1,21 @@
+repository: ${GITHUB_REPOSITORY}
+coverage:
+  if: true
+  paths:
+    - coverage.xml
+testExecutionTime:
+  if: true
+diff:
+  if: is_pull_request
+  datastores:
+    - artifact://${GITHUB_REPOSITORY}
+body:
+  if: is_pull_request
+  hideFooterLink: true
+summary:
+  if: true
+  hideFooterLink: true
+report:
+  if: is_default_branch
+  datastores:
+    - artifact://${GITHUB_REPOSITORY}
