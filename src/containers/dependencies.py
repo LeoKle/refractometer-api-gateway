@@ -1,5 +1,6 @@
 from dependency_injector import containers, providers
 from redis import Redis
+from refractometer_common.image import ImageClient
 
 from auth.auth_service import AuthService
 from auth.providers.github_oauth_provider import GitHubOAuthProvider
@@ -37,3 +38,11 @@ class DependencyContainer(containers.DeclarativeContainer):
     )
 
     user_repository = providers.Factory(SQLUserRepository, session_factory=session_factory)
+
+    # image
+
+    image_client = providers.Factory(
+        ImageClient,
+        base_url=config.IMAGE_CLIENT_URL,
+        timeout=config.IMAGE_CLIENT_TIMEOUT,
+    )
