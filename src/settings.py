@@ -38,6 +38,9 @@ class BaseSettings(PydanticBaseSettings):
     OAUTH_REDIRECT_URL: str
     OAUTH_SCOPES: str = "openid email"
 
+    IMAGE_CLIENT_URL: str
+    IMAGE_CLIENT_TIMEOUT: float = 2.0
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
@@ -57,6 +60,8 @@ class TestSettings(BaseSettings):
     OAUTH_CLIENT_ID: str = ""
     OAUTH_CLIENT_SECRET: SecretStr = SecretStr("")
     OAUTH_REDIRECT_URL: str = ""
+
+    IMAGE_CLIENT_URL: str = ""
 
 
 class DevSettings(BaseSettings):
