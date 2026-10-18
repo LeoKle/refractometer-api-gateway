@@ -694,7 +694,7 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = ">=2.9.12" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pyjwt", specifier = ">=2.15.1" },
-    { name = "refractometer-common-layer", git = "https://github.com/LeoKle/refractometer-common-layer?tag=v0.2.3" },
+    { name = "refractometer-common-layer", git = "https://github.com/LeoKle/refractometer-common-layer?tag=v0.2.5" },
     { name = "sqlmodel", specifier = ">=0.0.39" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.0" },
 ]
@@ -710,7 +710,7 @@ dev = [
 [[package]]
 name = "refractometer-common-layer"
 version = "0.2.3"
-source = { git = "https://github.com/LeoKle/refractometer-common-layer?tag=v0.2.3#6fbae31fceb237fa4598977c21138c8a753fbb7b" }
+source = { git = "https://github.com/LeoKle/refractometer-common-layer?tag=v0.2.5#d83712538e6a5d8dbac15f0d575b70a4934c1f9b" }
 dependencies = [
     { name = "httpx" },
     { name = "httpx2" },
