@@ -66,4 +66,4 @@ pythonpath = ["src", "."]
 markers = ["unit: unit tests", "integration: integration tests"]
 
 [tool.uv.sources]
-refractometer-common-layer = { git = "https://github.com/LeoKle/refractometer-common-layer", tag = "v0.2.5" }
+refractometer-common-layer = { git = "https://github.com/LeoKle/refractometer-common-layer", tag = "v0.2.6" }

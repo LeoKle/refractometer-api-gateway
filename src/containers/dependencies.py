@@ -1,5 +1,6 @@
 from dependency_injector import containers, providers
 from refractometer_common.image import ImageClient
+from refractometer_common.result import SimulationResultClient
 
 from auth.auth_service import AuthService
 from auth.providers.github_oauth_provider import GitHubOAuthProvider
@@ -34,4 +35,10 @@ class DependencyContainer(containers.DeclarativeContainer):
         ImageClient,
         base_url=config.IMAGE_CLIENT_URL,
         timeout=config.IMAGE_CLIENT_TIMEOUT,
+    )
+
+    result_client = providers.Factory(
+        SimulationResultClient,
+        base_url=config.RESULT_CLIENT_URL,
+        timeout=config.RESULT_CLIENT_TIMEOUT,
     )
