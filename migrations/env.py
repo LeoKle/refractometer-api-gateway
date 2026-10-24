@@ -12,10 +12,11 @@ SRC_DIR = os.path.join(BASE_DIR, "src")  # ruff: ignore[os-path-join]
 sys.path.insert(0, BASE_DIR)
 sys.path.insert(0, SRC_DIR)
 
-from src.users.user_model import UserModel
-from src.settings import Settings  # ruff: ignore[module-import-not-at-top-of-file]
+from users.user_model import UserModel
+from settings import get_settings  # ruff: ignore[module-import-not-at-top-of-file]
 
-settings = Settings()
+settings = get_settings()
+print(settings.DB_URL)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DB_URL)
