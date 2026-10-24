@@ -1,6 +1,8 @@
 services:
   gateway:
     build: .
+    env_file:
+      - .env
     ports:
       - 8000:8000
 
@@ -16,7 +18,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER"]
+      test: [ "CMD-SHELL", "pg_isready -U $POSTGRES_USER" ]
       interval: 5s
       timeout: 5s
       retries: 5
