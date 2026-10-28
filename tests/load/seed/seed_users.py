@@ -12,7 +12,7 @@ engine = create_engine(get_settings().DB_URL)
 SessionLocal = sessionmaker(bind=engine)
 
 
-def seed_users(count: int = 10_000):
+def seed_users(count: int = 100_000):
     with SessionLocal() as session:
         batch_size = 1_000
 
