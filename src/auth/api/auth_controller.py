@@ -8,17 +8,15 @@ from auth.api.auth_responses import UserInfoResponse
 from auth.guards import get_user
 from auth.interfaces.auth_service_interface import (
     AuthenticationError,
+    AuthModel,
     AuthProviderUnavailableError,
     AuthServiceInterface,
     InvalidLoginTransactionError,
+    InvalidSessionError,
     LoginResult,
 )
 from auth.oauth_transaction import (
     TRANSACTION_TTL_MINUTES,
-)
-from auth.tokens import (
-    InvalidTokenError,
-    JsonWebToken,
 )
 from containers.dependencies import DependencyContainer
 from settings import get_settings
@@ -135,29 +133,23 @@ def auth_refresh(
         UserRepositoryInterface,
         Depends(Provide[DependencyContainer.user_repository]),
     ],
+    auth_service: Annotated[
+        AuthServiceInterface,
+        Depends(Provide[DependencyContainer.auth_service]),
+    ],
     refresh_token: Annotated[str | None, Cookie(alias=get_settings().COOKIE_NAME_REFRESH)] = None,
 ):
-    if refresh_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token"
-        )
-
     try:
-        token = JsonWebToken.decode(refresh_token, "refresh")
-    except InvalidTokenError as e:
+        tokens: AuthModel = auth_service.refresh(refresh_token)
+    except InvalidSessionError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-        ) from e
-
-    user = user_repository.get_by_id(token.sub)
-
-    if not user.access:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing access")
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unable to refresh tokens"
+        ) from None
 
     _set_auth_cookies(
         response,
-        JsonWebToken.access(user_id=str(user.id)).encode(),
-        JsonWebToken.refresh(user_id=str(user.id)).encode(),
+        tokens.access,
+        tokens.refresh,
     )
 
 

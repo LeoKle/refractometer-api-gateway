@@ -7,6 +7,7 @@ from auth.interfaces.auth_service_interface import (
     AuthProviderUnavailableError,
     AuthServiceInterface,
     InvalidLoginTransactionError,
+    InvalidSessionError,
     LoginResult,
     LoginStart,
 )
@@ -19,7 +20,7 @@ from auth.interfaces.oauth_provider_interface import (
     UserData,
 )
 from auth.oauth_transaction import create_transaction, decode_transaction, encode_transaction
-from auth.tokens import JsonWebToken
+from auth.tokens import InvalidTokenError, JsonWebToken
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
 
@@ -82,6 +83,32 @@ class AuthService(AuthServiceInterface):
         )
 
         return login_result
+
+    def refresh(self, refresh_token: str | None):
+        if refresh_token is None:
+            raise InvalidSessionError
+
+        try:
+            token = JsonWebToken.decode(refresh_token, "refresh")
+        except InvalidTokenError:
+            logger.info("Invalid refresh token")
+            raise InvalidSessionError from None
+
+        user = self.user_repo.get_by_id(token.sub)
+        if user is None:
+            logger.info("Refresh for unknown user %s", token.sub)
+            raise InvalidSessionError
+
+        if not user.access:
+            logger.info("Refresh denied, user %s has no access", user.id)
+            raise InvalidSessionError
+
+        new_access = JsonWebToken.access(user.id)
+        new_refresh = JsonWebToken.refresh(user.id)
+
+        # TODO: token rotation
+
+        return AuthModel(access=new_access.encode(), refresh=new_refresh.encode())
 
     def _upsert_user_and_generate_tokens(self, user_data: UserData) -> AuthModel:
         user = self.user_repo.get_by_email(user_data.email)

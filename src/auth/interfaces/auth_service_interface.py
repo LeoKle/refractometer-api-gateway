@@ -51,3 +51,6 @@ class AuthServiceInterface(ABC):
         :param str | None transaction: The transaction JWT
         """
         ...
+
+    @abstractmethod
+    def refresh(self, refresh_token: str | None) -> AuthModel: ...
