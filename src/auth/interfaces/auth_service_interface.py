@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel
-
-from auth.oauth_transaction import OAuthTransaction
+from pydantic import BaseModel, Field
 
 
 class AuthenticationError(Exception):
@@ -20,9 +18,18 @@ class AuthModel(BaseModel):
     refresh: str
 
 
+class LoginStart(BaseModel):
+    url: str = Field(..., description="the URL the user has to complete the authorization on")
+    transaction: str = Field(
+        ...,
+        description="a signed JWT containing CSRF state, PKCE code verifier "
+        "and frontend page to redirect to",
+    )
+
+
 class AuthServiceInterface(ABC):
     @abstractmethod
-    def start_login(self, redirect_to: str | None) -> tuple[str, OAuthTransaction]: ...
+    def start_login(self, redirect_to: str | None) -> LoginStart: ...
 
     @abstractmethod
     def authenticate(self, code: str, code_verifier: str) -> AuthModel: ...

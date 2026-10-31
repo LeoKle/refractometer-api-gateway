@@ -40,10 +40,10 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
     response.set_cookie(get_settings().COOKIE_NAME_REFRESH, refresh, **cookie_defaults)
 
 
-def _set_transaction_cookie(response: Response, transaction: OAuthTransaction) -> None:
+def _set_transaction_cookie(response: Response, transaction: str) -> None:
     response.set_cookie(
         get_settings().COOKIE_NAME_OAUTH_TRANSACTION,
-        encode_transaction(transaction),
+        transaction,
         httponly=True,
         secure=get_settings().COOKIES_SECURE,
         samesite="lax",
@@ -67,10 +67,10 @@ def login(
     ],
     redirect_to: str | None = None,
 ):
-    url, transaction = auth_service.start_login(redirect_to)
+    login_start = auth_service.start_login(redirect_to)
 
-    response = RedirectResponse(url)
-    _set_transaction_cookie(response, transaction)
+    response = RedirectResponse(login_start.url)
+    _set_transaction_cookie(response, login_start.transaction)
 
     return response
 

@@ -5,6 +5,7 @@ from auth.interfaces.auth_service_interface import (
     AuthModel,
     AuthProviderUnavailableError,
     AuthServiceInterface,
+    LoginStart,
 )
 from auth.interfaces.oauth_provider_interface import (
     AuthResponseData,
@@ -14,7 +15,7 @@ from auth.interfaces.oauth_provider_interface import (
     OAuthUserDataError,
     UserData,
 )
-from auth.oauth_transaction import OAuthTransaction, create_transaction
+from auth.oauth_transaction import create_transaction, encode_transaction
 from auth.tokens import JsonWebToken
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
@@ -27,12 +28,12 @@ class AuthService(AuthServiceInterface):
         self.oauth_provider = oauth_provider
         self.user_repo = user_repo
 
-    def start_login(self, redirect_to: str | None) -> tuple[str, OAuthTransaction]:
+    def start_login(self, redirect_to: str | None) -> LoginStart:
         transaction, code_challenge = create_transaction(redirect_to)
 
         url = self.oauth_provider.get_redirect_url(transaction.state, code_challenge)
 
-        return url, transaction
+        return LoginStart(url=url, transaction=encode_transaction(transaction))
 
     def authenticate(self, code: str, code_verifier: str) -> AuthModel:
         try:
