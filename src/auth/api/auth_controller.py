@@ -1,4 +1,3 @@
-import secrets
 from typing import Annotated
 
 from dependency_injector.wiring import Provide, inject
@@ -7,12 +6,15 @@ from fastapi.responses import RedirectResponse
 
 from auth.api.auth_responses import UserInfoResponse
 from auth.guards import get_user
-from auth.interfaces.auth_service_interface import AuthModel, AuthServiceInterface
+from auth.interfaces.auth_service_interface import (
+    AuthenticationError,
+    AuthProviderUnavailableError,
+    AuthServiceInterface,
+    InvalidLoginTransactionError,
+    LoginResult,
+)
 from auth.oauth_transaction import (
     TRANSACTION_TTL_MINUTES,
-    OAuthTransaction,
-    decode_transaction,
-    encode_transaction,
 )
 from auth.tokens import (
     InvalidTokenError,
@@ -79,7 +81,6 @@ def login(
 @inject
 def auth_callback(
     code: str,
-    response: Response,
     auth_service: Annotated[
         AuthServiceInterface,
         Depends(Provide[DependencyContainer.auth_service]),
@@ -89,28 +90,27 @@ def auth_callback(
         str | None, Cookie(alias=get_settings().COOKIE_NAME_OAUTH_TRANSACTION)
     ] = None,
 ):
-    if oauth_transaction is None:
+    try:
+        login_result: LoginResult = auth_service.complete_login(code, state, oauth_transaction)
+    except InvalidLoginTransactionError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing OAuth transaction",
-        )
-
-    transaction = decode_transaction(oauth_transaction)
-
-    if transaction is None:
+            detail="Login failed",
+        ) from None
+    except AuthProviderUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Login provider unavailable",
+        ) from None
+    except AuthenticationError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OAuth transaction",
-        )
+            detail="Authentication failed",
+        ) from None
 
-    if not state or not secrets.compare_digest(state, transaction.state):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state")
+    response = RedirectResponse(login_result.redirect_to)
 
-    token: AuthModel = auth_service.authenticate(code, transaction.code_verifier)
-
-    response = RedirectResponse(transaction.redirect_to)
-
-    _set_auth_cookies(response, token.access, token.refresh)
+    _set_auth_cookies(response, login_result.access_token, login_result.refresh_token)
     _clear_transaction_cookie(response)
 
     return response

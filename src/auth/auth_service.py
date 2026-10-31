@@ -1,10 +1,13 @@
 import logging
+import secrets
 
 from auth.interfaces.auth_service_interface import (
     AuthenticationError,
     AuthModel,
     AuthProviderUnavailableError,
     AuthServiceInterface,
+    InvalidLoginTransactionError,
+    LoginResult,
     LoginStart,
 )
 from auth.interfaces.oauth_provider_interface import (
@@ -15,7 +18,7 @@ from auth.interfaces.oauth_provider_interface import (
     OAuthUserDataError,
     UserData,
 )
-from auth.oauth_transaction import create_transaction, encode_transaction
+from auth.oauth_transaction import create_transaction, decode_transaction, encode_transaction
 from auth.tokens import JsonWebToken
 from users.user import User
 from users.user_repository_interface import UserRepositoryInterface
@@ -35,7 +38,23 @@ class AuthService(AuthServiceInterface):
 
         return LoginStart(url=url, transaction=encode_transaction(transaction))
 
-    def authenticate(self, code: str, code_verifier: str) -> AuthModel:
+    def complete_login(self, code: str, state: str | None, transaction: str | None) -> LoginResult:
+        if transaction is None:
+            logger.info("Login callback without a transaction cookie")
+            raise InvalidLoginTransactionError
+
+        oauth_transaction = decode_transaction(transaction)
+
+        if oauth_transaction is None:
+            logger.info("Login callback with an invalid or expired transaction")
+            raise InvalidLoginTransactionError
+
+        if not state or not secrets.compare_digest(state, oauth_transaction.state):
+            logger.info("State missing or not equal to expected transaction state")
+            raise InvalidLoginTransactionError
+
+        code_verifier = oauth_transaction.code_verifier
+
         try:
             auth_data: AuthResponseData = self.oauth_provider.exchange_code(code, code_verifier)
         except OAuthNetworkError as err:
@@ -54,7 +73,15 @@ class AuthService(AuthServiceInterface):
             logger.warning("AuthService: user data rejected: %s", err)
             raise AuthenticationError from err
 
-        return self._upsert_user_and_generate_tokens(user_data)
+        tokens: AuthModel = self._upsert_user_and_generate_tokens(user_data)
+
+        login_result = LoginResult(
+            access_token=tokens.access,
+            refresh_token=tokens.refresh,
+            redirect_to=oauth_transaction.redirect_to,
+        )
+
+        return login_result
 
     def _upsert_user_and_generate_tokens(self, user_data: UserData) -> AuthModel:
         user = self.user_repo.get_by_email(user_data.email)
