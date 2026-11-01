@@ -8,7 +8,6 @@ from pydantic import BaseModel, ValidationError
 
 from settings import get_settings
 
-ALGORITHM = "HS256"
 REQUIRED_CLAIMS = ["iss", "sub", "aud", "iat", "exp", "jti", "fid"]
 
 
@@ -34,8 +33,8 @@ class JsonWebToken(BaseModel):
         return jwt.encode(
             # mode="json" to ensure sub, jti and fid get cast to str
             self.model_dump(mode="json"),
-            settings.JWT_SECRET_KEY.get_secret_value(),
-            algorithm=ALGORITHM,
+            settings.JWT_PRIVATE_KEY.get_secret_value(),
+            algorithm=settings.JWT_ALGORITHM,
         )
 
     @classmethod
@@ -45,8 +44,8 @@ class JsonWebToken(BaseModel):
         try:
             payload = jwt.decode(
                 token,
-                settings.JWT_SECRET_KEY.get_secret_value(),
-                algorithms=[ALGORITHM],
+                settings.JWT_PUBLIC_KEY,
+                algorithms=[settings.JWT_ALGORITHM],
                 audience=settings.JWT_AUDIENCE,
                 issuer=settings.JWT_ISSUER,
                 options={"require": REQUIRED_CLAIMS},

@@ -1,7 +1,8 @@
 from enum import StrEnum
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings as PydanticBaseSettings
 from pydantic_settings import SettingsConfigDict
 
@@ -26,7 +27,23 @@ class BaseSettings(PydanticBaseSettings):
     def COOKIES_SECURE(self) -> bool:
         return EnvType.prod == self.ENV
 
-    JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
+    JWT_ALGORITHM: Literal["HS256", "EdDSA"]
+    JWT_PRIVATE_KEY: SecretStr = Field(description="PEM private key, used to sign tokens")
+    JWT_PUBLIC_KEY: str = Field(
+        description="PEM public key, used to verify tokens.",
+    )
+
+    @model_validator(mode="after")
+    def _check_key_material(self):
+        if self.JWT_ALGORITHM == "HS256":
+            if self.JWT_PRIVATE_KEY.get_secret_value() != self.JWT_PUBLIC_KEY:
+                msg = "HS256 requires JWT_PUBLIC_KEY to equal JWT_PRIVATE_KEY"
+                raise ValueError(msg)
+            if EnvType.prod == self.ENV:
+                msg_0 = "HS256 is not allowed in prod, use EdDSA"
+                raise ValueError(msg_0)
+        return self
+
     JWT_ISSUER: str
     JWT_AUDIENCE: str
     JWT_ACCESS_TOKEN_TTL: int = Field(default=10, description="TTL in minutes")
@@ -49,7 +66,9 @@ class TestSettings(BaseSettings):
 
     DB_URL: str = ""
 
-    JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
+    JWT_ALGORITHM: Literal["HS256", "EdDSA"] = "HS256"
+    JWT_PRIVATE_KEY: SecretStr = SecretStr("supersecret")
+    JWT_PUBLIC_KEY: str = "supersecret"
     JWT_ISSUER: str = "gateway-refractometer"
     JWT_AUDIENCE: str = "api-refractometer"
 
@@ -64,7 +83,9 @@ class DevSettings(BaseSettings):
 
     DB_URL: str = "postgresql://refractometer:password@localhost:5432/refractometer-api-gateway"
 
-    JWT_SECRET_KEY: SecretStr = SecretStr("supersecret")
+    JWT_ALGORITHM: Literal["HS256", "EdDSA"] = "HS256"
+    JWT_PRIVATE_KEY: SecretStr = SecretStr("supersecret")
+    JWT_PUBLIC_KEY: str = "supersecret"
     JWT_ISSUER: str = "gateway-refractometer"
     JWT_AUDIENCE: str = "api-refractometer"
 

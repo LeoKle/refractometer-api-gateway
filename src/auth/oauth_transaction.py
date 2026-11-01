@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 
 from settings import get_settings
 
-ALGORITHM = "HS256"
 TRANSACTION_TYPE = "oauth_transaction"
 TRANSACTION_TTL_MINUTES = 10
 
@@ -80,15 +79,17 @@ def encode_transaction(transaction: OAuthTransaction) -> str:
             "exp": datetime.now(UTC) + timedelta(minutes=TRANSACTION_TTL_MINUTES),
             "type": TRANSACTION_TYPE,
         },
-        get_settings().JWT_SECRET_KEY.get_secret_value(),
-        algorithm=ALGORITHM,
+        get_settings().JWT_PRIVATE_KEY.get_secret_value(),
+        algorithm=get_settings().JWT_ALGORITHM,
     )
 
 
 def decode_transaction(token: str) -> OAuthTransaction | None:
     try:
         payload = jwt.decode(
-            token, get_settings().JWT_SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM]
+            token,
+            get_settings().JWT_PUBLIC_KEY,
+            algorithms=[get_settings().JWT_ALGORITHM],
         )
     except jwt.PyJWTError:
         return None

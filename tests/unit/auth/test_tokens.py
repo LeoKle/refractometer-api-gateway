@@ -1,19 +1,42 @@
 import base64
+import hashlib
+import hmac
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+)
 from pydantic import SecretStr, ValidationError
 
-from auth.tokens import ALGORITHM, InvalidTokenError, JsonWebToken
+from auth.tokens import InvalidTokenError, JsonWebToken
 from settings import get_settings
 
-TEST_SECRET = SecretStr(
+
+def _ed25519_pair() -> tuple[str, str]:
+    key = Ed25519PrivateKey.generate()
+    private = key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode()
+    public = key.public_key().public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode()
+    return private, public
+
+
+def b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+TEST_ALGORITHM = "HS256"
+TEST_PRIVATE_KEY = SecretStr(
     "test-secret-that-is-at-least-64-bytes-long-so-pyjwt-does-not-throw-warnings"
 )
-TEST_SECRET_RAW = TEST_SECRET.get_secret_value()
+TEST_PRIVATE_KEY_RAW = TEST_PRIVATE_KEY.get_secret_value()
+TEST_PUBLIC_KEY = TEST_PRIVATE_KEY.get_secret_value()
 TEST_ISSUER = "test-issuer"
 TEST_AUDIENCE = "test-audience"
 TEST_ACCESS_TTL = 10  # minutes
@@ -24,7 +47,9 @@ TEST_REFRESH_TTL = 31  # days
 def pinned_settings(monkeypatch):
     """set settings for tests"""
     settings = get_settings()
-    monkeypatch.setattr(settings, "JWT_SECRET_KEY", TEST_SECRET)
+    monkeypatch.setattr(settings, "JWT_ALGORITHM", TEST_ALGORITHM)
+    monkeypatch.setattr(settings, "JWT_PRIVATE_KEY", TEST_PRIVATE_KEY)
+    monkeypatch.setattr(settings, "JWT_PUBLIC_KEY", TEST_PUBLIC_KEY)
     monkeypatch.setattr(settings, "JWT_ISSUER", TEST_ISSUER)
     monkeypatch.setattr(settings, "JWT_AUDIENCE", TEST_AUDIENCE)
     monkeypatch.setattr(settings, "JWT_ACCESS_TOKEN_TTL", TEST_ACCESS_TTL)
@@ -46,8 +71,8 @@ def decode_raw(token: str) -> dict:
     """Decode without going through JsonWebToken.decode(), to inspect claims directly."""
     return jwt.decode(
         token,
-        TEST_SECRET_RAW,
-        algorithms=[ALGORITHM],
+        TEST_PUBLIC_KEY,
+        algorithms=[TEST_ALGORITHM],
         audience=TEST_AUDIENCE,
     )
 
@@ -70,7 +95,7 @@ def _claims(user_id: uuid.UUID, **overrides) -> dict:
 
 
 def _sign(claims: dict) -> str:
-    return jwt.encode(claims, TEST_SECRET_RAW, algorithm=ALGORITHM)
+    return jwt.encode(claims, TEST_PRIVATE_KEY_RAW, algorithm=TEST_ALGORITHM)
 
 
 class TestHandBuiltClaimsAreValid:
@@ -272,7 +297,7 @@ class TestDecodeTamperResistance:
         forged = jwt.encode(
             _claims(user_id, token_type=token_type),
             "a-completely-different-secret-of-sufficient-length",
-            algorithm=ALGORITHM,
+            algorithm=TEST_ALGORITHM,
         )
         with pytest.raises(InvalidTokenError):
             JsonWebToken.decode(forged, token_type)
@@ -295,9 +320,6 @@ class TestDecodeTamperResistance:
         left empty.
         """
 
-        def b64url(data: bytes) -> str:
-            return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
-
         header = b64url(json.dumps({"alg": "none", "typ": "JWT"}).encode())
         payload = b64url(json.dumps(_claims(user_id, token_type=token_type)).encode())
         forged = f"{header}.{payload}."  # empty signature segment
@@ -316,7 +338,7 @@ class TestDecodeTamperResistance:
     def test_token_signed_with_different_algorithm_rejected(self, user_id, token_type):
         """decode() pins ALGORITHM=HS256 - an HS512 token must not be accepted."""
         forged = jwt.encode(
-            _claims(user_id, token_type=token_type), TEST_SECRET_RAW, algorithm="HS512"
+            _claims(user_id, token_type=token_type), TEST_PRIVATE_KEY_RAW, algorithm="HS512"
         )
         with pytest.raises(InvalidTokenError):
             JsonWebToken.decode(forged, token_type)
@@ -350,5 +372,44 @@ class TestDecodeTamperResistance:
     @pytest.mark.parametrize("claim", ["jti", "fid"])
     def test_non_uuid_id_claim_rejected(self, user_id, token_type, claim):
         forged = _sign(_claims(user_id, token_type=token_type, **{claim: "not-a-uuid"}))
+        with pytest.raises(InvalidTokenError):
+            JsonWebToken.decode(forged, token_type)
+
+
+class TestEdDSA:
+    @pytest.fixture(autouse=True)
+    def eddsa_settings(self, monkeypatch):
+        # runs after the module-level autouse fixture, so these values win
+        self.private, self.public = _ed25519_pair()
+        settings = get_settings()
+        monkeypatch.setattr(settings, "JWT_ALGORITHM", "EdDSA")
+        monkeypatch.setattr(settings, "JWT_PRIVATE_KEY", SecretStr(self.private))
+        monkeypatch.setattr(settings, "JWT_PUBLIC_KEY", self.public)
+
+    def test_round_trip(self, user_id, token_type):
+        original = JsonWebToken.create(user_id, token_type, timedelta(minutes=10))
+        assert JsonWebToken.decode(original.encode(), token_type) == original
+
+    def test_header_algorithm_is_eddsa(self, user_id):
+        header = jwt.get_unverified_header(JsonWebToken.access(user_id).encode())
+        assert header["alg"] == "EdDSA"
+
+    def test_token_signed_with_other_key_rejected(self, user_id, token_type):
+        other_private, _ = _ed25519_pair()
+        forged = jwt.encode(
+            _claims(user_id, token_type=token_type), other_private, algorithm="EdDSA"
+        )
+        with pytest.raises(InvalidTokenError):
+            JsonWebToken.decode(forged, token_type)
+
+    def test_hs256_signed_with_public_key_rejected(self, user_id, token_type):
+        """Algorithm confusion: the public key is public, so an attacker can use
+        it as an HMAC secret. Built by hand because PyJWT refuses PEM keys for HMAC."""
+        header = b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+        payload = b64url(json.dumps(_claims(user_id, token_type=token_type)).encode())
+        signing_input = f"{header}.{payload}".encode()
+        sig = hmac.new(self.public.encode(), signing_input, hashlib.sha256).digest()
+        forged = f"{header}.{payload}.{b64url(sig)}"
+
         with pytest.raises(InvalidTokenError):
             JsonWebToken.decode(forged, token_type)
