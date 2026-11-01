@@ -117,7 +117,10 @@ class AuthService(AuthServiceInterface):
             user = User(email=user_data.email, name=user_data.name)
             user = self.user_repo.create(user)
 
+        refresh_token = JsonWebToken.refresh(user_id=user.id)
+        access_token = JsonWebToken.access(user.id, family_id=refresh_token.fid)
+
         return AuthModel(
-            access=JsonWebToken.access(user_id=user.id).encode(),
-            refresh=JsonWebToken.refresh(user_id=user.id).encode(),
+            access=access_token.encode(),
+            refresh=refresh_token.encode(),
         )

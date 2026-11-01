@@ -9,7 +9,7 @@ from pydantic import BaseModel, ValidationError
 from settings import get_settings
 
 ALGORITHM = "HS256"
-REQUIRED_CLAIMS = ["iss", "sub", "aud", "iat", "exp", "jti"]
+REQUIRED_CLAIMS = ["iss", "sub", "aud", "iat", "exp", "jti", "fid"]
 
 
 class InvalidTokenError(Exception): ...
@@ -24,14 +24,16 @@ class JsonWebToken(BaseModel):
     aud: str
     iat: int
     exp: int
-    jti: UUID
+    jti: UUID  # unique per token
+    fid: UUID  # session family: shared by every token descended from one login
     token_type: TokenType
 
     def encode(self) -> str:
         settings = get_settings()
 
         return jwt.encode(
-            self.model_dump(mode="json"),  # mode="json" to ensure sub gets cast to str
+            # mode="json" to ensure sub, jti and fid get cast to str
+            self.model_dump(mode="json"),
             settings.JWT_SECRET_KEY.get_secret_value(),
             algorithm=ALGORITHM,
         )
@@ -65,7 +67,10 @@ class JsonWebToken(BaseModel):
         user_id: UUID,
         token_type: TokenType,
         expires_in: timedelta,
+        family_id: UUID | None = None,
     ) -> "JsonWebToken":
+        """`family_id=None` starts a new family (login). Pass the existing
+        family's id when rotating, so the whole chain shares one fid."""
         settings = get_settings()
         now = datetime.now(UTC)
 
@@ -76,25 +81,28 @@ class JsonWebToken(BaseModel):
             iat=int(now.timestamp()),
             exp=int((now + expires_in).timestamp()),
             jti=uuid4(),
+            fid=family_id or uuid4(),
             token_type=token_type,
         )
 
     @classmethod
-    def access(cls, user_id: UUID) -> "JsonWebToken":
+    def access(cls, user_id: UUID, family_id: UUID | None = None) -> "JsonWebToken":
         settings = get_settings()
 
         return cls.create(
             user_id=user_id,
             token_type="access",
             expires_in=timedelta(minutes=settings.JWT_ACCESS_TOKEN_TTL),
+            family_id=family_id,
         )
 
     @classmethod
-    def refresh(cls, user_id: UUID) -> "JsonWebToken":
+    def refresh(cls, user_id: UUID, family_id: UUID | None = None) -> "JsonWebToken":
         settings = get_settings()
 
         return cls.create(
             user_id=user_id,
             token_type="refresh",
             expires_in=timedelta(days=settings.JWT_REFRESH_TOKEN_TTL),
+            family_id=family_id,
         )

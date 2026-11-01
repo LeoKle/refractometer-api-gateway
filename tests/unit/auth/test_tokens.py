@@ -36,6 +36,12 @@ def user_id() -> uuid.UUID:
     return uuid.uuid4()
 
 
+@pytest.fixture(params=["access", "refresh"])
+def token_type(request) -> str:
+    """Runs the test once per token type."""
+    return request.param
+
+
 def decode_raw(token: str) -> dict:
     """Decode without going through JsonWebToken.decode(), to inspect claims directly."""
     return jwt.decode(
@@ -56,6 +62,7 @@ def _claims(user_id: uuid.UUID, **overrides) -> dict:
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=10)).timestamp()),
         "jti": str(uuid.uuid4()),
+        "fid": str(uuid.uuid4()),
         "token_type": "access",
     }
     claims.update(overrides)
@@ -64,6 +71,19 @@ def _claims(user_id: uuid.UUID, **overrides) -> dict:
 
 def _sign(claims: dict) -> str:
     return jwt.encode(claims, TEST_SECRET_RAW, algorithm=ALGORITHM)
+
+
+class TestHandBuiltClaimsAreValid:
+    """Positive control for the forged-token tests below. Each of those expects
+    InvalidTokenError, so if `_claims` stopped producing a valid token (say a
+    new required claim was added), they would all keep passing for the wrong
+    reason. This test fails instead."""
+
+    def test_hand_built_token_is_accepted(self, user_id, token_type):
+        decoded = JsonWebToken.decode(_sign(_claims(user_id, token_type=token_type)), token_type)
+
+        assert decoded.sub == user_id
+        assert decoded.token_type == token_type
 
 
 class TestCreate:
@@ -78,6 +98,7 @@ class TestCreate:
         assert "iat" in payload
         assert "exp" in payload
         assert uuid.UUID(payload["jti"])  # present and a valid UUID string
+        assert uuid.UUID(payload["fid"])
 
     def test_validity_is_respected(self, user_id):
         before = datetime.now(UTC)
@@ -114,6 +135,19 @@ class TestCreate:
         with pytest.raises(ValidationError):
             JsonWebToken.create(user_id, "bogus", timedelta(minutes=10))
 
+    def test_without_family_id_starts_a_new_family(self, user_id):
+        t1 = JsonWebToken.create(user_id, "refresh", timedelta(minutes=10))
+        t2 = JsonWebToken.create(user_id, "refresh", timedelta(minutes=10))
+
+        assert t1.fid != t2.fid
+
+    def test_given_family_id_is_used(self, user_id):
+        fid = uuid.uuid4()
+        token = JsonWebToken.create(user_id, "refresh", timedelta(minutes=10), family_id=fid)
+
+        assert token.fid == fid
+        assert decode_raw(token.encode())["fid"] == str(fid)
+
 
 class TestAccessToken:
     def test_contains_expected_claims(self, user_id):
@@ -129,6 +163,10 @@ class TestAccessToken:
 
         expected = before + timedelta(minutes=TEST_ACCESS_TTL)
         assert abs((exp - expected).total_seconds()) < 5
+
+    def test_given_family_id_is_used(self, user_id):
+        fid = uuid.uuid4()
+        assert JsonWebToken.access(user_id, family_id=fid).fid == fid
 
 
 class TestRefreshToken:
@@ -151,6 +189,30 @@ class TestRefreshToken:
         refresh = decode_raw(JsonWebToken.refresh(user_id).encode())
         assert access["token_type"] != refresh["token_type"]
 
+    def test_given_family_id_is_used(self, user_id):
+        fid = uuid.uuid4()
+        assert JsonWebToken.refresh(user_id, family_id=fid).fid == fid
+
+
+class TestFamily:
+    def test_login_starts_a_family_shared_by_the_token_pair(self, user_id):
+        """Login pattern: create the refresh token, reuse its fid for the access token."""
+        refresh = JsonWebToken.refresh(user_id)
+        access = JsonWebToken.access(user_id, family_id=refresh.fid)
+
+        assert access.fid == refresh.fid
+        assert access.jti != refresh.jti
+
+    def test_rotation_keeps_fid_but_changes_jti(self, user_id):
+        first = JsonWebToken.refresh(user_id)
+        rotated = JsonWebToken.refresh(user_id, family_id=first.fid)
+
+        assert rotated.fid == first.fid
+        assert rotated.jti != first.jti
+
+    def test_separate_logins_get_separate_families(self, user_id):
+        assert JsonWebToken.refresh(user_id).fid != JsonWebToken.refresh(user_id).fid
+
 
 class TestDecodeHappyPath:
     def test_decodes_valid_access_token(self, user_id):
@@ -162,36 +224,23 @@ class TestDecodeHappyPath:
         decoded = JsonWebToken.decode(JsonWebToken.refresh(user_id).encode(), "refresh")
         assert decoded.token_type == "refresh"
 
-    def test_round_trip_preserves_all_claims(self, user_id):
-        original = JsonWebToken.access(user_id)
-        decoded = JsonWebToken.decode(original.encode(), "access")
+    def test_round_trip_preserves_all_claims(self, user_id, token_type):
+        original = JsonWebToken.create(user_id, token_type, timedelta(minutes=10))
+        decoded = JsonWebToken.decode(original.encode(), token_type)
         assert decoded == original
 
-    def test_round_trip_preserves_jti(self, user_id):
-        original = JsonWebToken.access(user_id)
-        decoded = JsonWebToken.decode(original.encode(), "access")
+    def test_round_trip_preserves_jti_and_fid(self, user_id, token_type):
+        original = JsonWebToken.create(
+            user_id, token_type, timedelta(minutes=10), family_id=uuid.uuid4()
+        )
+        decoded = JsonWebToken.decode(original.encode(), token_type)
+
         assert decoded.jti == original.jti
+        assert decoded.fid == original.fid
 
 
 class TestDecodeExpectedType:
-    """expected_type is optional: omitted, any valid type is accepted; given,
-    any other type is rejected."""
-
-    def test_no_expected_type_accepts_any_valid_type(self, user_id):
-        access = JsonWebToken.decode(JsonWebToken.access(user_id).encode(), "access")
-        refresh = JsonWebToken.decode(JsonWebToken.refresh(user_id).encode(), "refresh")
-
-        assert access.token_type == "access"
-        assert refresh.token_type == "refresh"
-
-    def test_matching_expected_type_accepted(self, user_id):
-        access = JsonWebToken.decode(JsonWebToken.access(user_id).encode(), expected_type="access")
-        refresh = JsonWebToken.decode(
-            JsonWebToken.refresh(user_id).encode(), expected_type="refresh"
-        )
-
-        assert access.token_type == "access"
-        assert refresh.token_type == "refresh"
+    """expected_type is required and any other token type is rejected."""
 
     def test_refresh_token_rejected_as_access(self, user_id):
         token = JsonWebToken.refresh(user_id).encode()
@@ -203,40 +252,43 @@ class TestDecodeExpectedType:
         with pytest.raises(InvalidTokenError):
             JsonWebToken.decode(token, expected_type="refresh")
 
-    def test_invalid_token_still_rejected_with_expected_type(self):
+    def test_expected_type_is_required(self, user_id):
+        token = JsonWebToken.access(user_id).encode()
+        with pytest.raises(TypeError):
+            JsonWebToken.decode(token)  # type: ignore[call-arg]
+
+    def test_invalid_token_still_rejected_with_expected_type(self, token_type):
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode("not.a.jwt", expected_type="access")
+            JsonWebToken.decode("not.a.jwt", expected_type=token_type)
 
 
 class TestDecodeTamperResistance:
-    def test_expired_token_rejected(self, user_id):
-        token = JsonWebToken.create(user_id, "access", timedelta(minutes=-1)).encode()
+    def test_expired_token_rejected(self, user_id, token_type):
+        token = JsonWebToken.create(user_id, token_type, timedelta(minutes=-1)).encode()
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(token, "access")
+            JsonWebToken.decode(token, token_type)
 
-    def test_token_signed_with_wrong_secret_rejected(self, user_id):
+    def test_token_signed_with_wrong_secret_rejected(self, user_id, token_type):
         forged = jwt.encode(
-            _claims(user_id),
+            _claims(user_id, token_type=token_type),
             "a-completely-different-secret-of-sufficient-length",
             algorithm=ALGORITHM,
         )
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "refresh")
+            JsonWebToken.decode(forged, token_type)
 
-    def test_tampered_payload_rejected(self, user_id):
+    def test_tampered_payload_rejected(self, user_id, token_type):
         """Flip the payload without re-signing -> must fail."""
-        token = JsonWebToken.access(user_id).encode()
+        token = JsonWebToken.create(user_id, token_type, timedelta(minutes=10)).encode()
         header_b64, payload_b64, sig_b64 = token.split(".")
 
         corrupted_payload = payload_b64[:-4] + ("AAAA" if payload_b64[-4:] != "AAAA" else "BBBB")
         tampered = f"{header_b64}.{corrupted_payload}.{sig_b64}"
 
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(tampered, "access")
+            JsonWebToken.decode(tampered, token_type)
 
-    def test_alg_none_forgery_rejected(self, user_id):
+    def test_alg_none_forgery_rejected(self, user_id, token_type):
         """
         Classic 'alg: none' attack. The forged token is built by hand the way
         a real attacker would - valid base64/JSON with the signature segment
@@ -247,65 +299,56 @@ class TestDecodeTamperResistance:
             return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
         header = b64url(json.dumps({"alg": "none", "typ": "JWT"}).encode())
-        payload = b64url(json.dumps(_claims(user_id)).encode())
+        payload = b64url(json.dumps(_claims(user_id, token_type=token_type)).encode())
         forged = f"{header}.{payload}."  # empty signature segment
 
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "refresh")
+            JsonWebToken.decode(forged, token_type)
 
-    def test_garbage_string_rejected(self):
+    def test_garbage_string_rejected(self, token_type):
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode("not.a.jwt", "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode("not.a.jwt", "refresh")
+            JsonWebToken.decode("not.a.jwt", token_type)
 
-    def test_empty_string_rejected(self):
+    def test_empty_string_rejected(self, token_type):
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode("", "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode("", "refresh")
+            JsonWebToken.decode("", token_type)
 
-    def test_token_signed_with_different_algorithm_rejected(self, user_id):
+    def test_token_signed_with_different_algorithm_rejected(self, user_id, token_type):
         """decode() pins ALGORITHM=HS256 - an HS512 token must not be accepted."""
-        forged = jwt.encode(_claims(user_id), TEST_SECRET_RAW, algorithm="HS512")
+        forged = jwt.encode(
+            _claims(user_id, token_type=token_type), TEST_SECRET_RAW, algorithm="HS512"
+        )
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "refresh")
+            JsonWebToken.decode(forged, token_type)
 
-    @pytest.mark.parametrize("claim", ["iss", "sub", "aud", "iat", "exp", "jti", "token_type"])
-    def test_missing_required_claim_rejected(self, user_id, claim):
+    @pytest.mark.parametrize(
+        "claim", ["iss", "sub", "aud", "iat", "exp", "jti", "fid", "token_type"]
+    )
+    def test_missing_required_claim_rejected(self, user_id, token_type, claim):
         """
         A correctly-signed token missing any required claim must be rejected
         as InvalidTokenError, not leak a raw PyJWT/pydantic error past
         decode()'s error boundary.
         """
-        incomplete = {k: v for k, v in _claims(user_id).items() if k != claim}
+        incomplete = {
+            k: v for k, v in _claims(user_id, token_type=token_type).items() if k != claim
+        }
 
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(_sign(incomplete), "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(_sign(incomplete), "refresh")
+            JsonWebToken.decode(_sign(incomplete), token_type)
 
-    def test_wrong_issuer_rejected(self, user_id):
-        forged = _sign(_claims(user_id, iss="some-other-issuer"))
+    def test_wrong_issuer_rejected(self, user_id, token_type):
+        forged = _sign(_claims(user_id, token_type=token_type, iss="some-other-issuer"))
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "refresh")
+            JsonWebToken.decode(forged, token_type)
 
-    def test_wrong_audience_rejected(self, user_id):
-        forged = _sign(_claims(user_id, aud="some-other-audience"))
+    def test_wrong_audience_rejected(self, user_id, token_type):
+        forged = _sign(_claims(user_id, token_type=token_type, aud="some-other-audience"))
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "refresh")
+            JsonWebToken.decode(forged, token_type)
 
-    def test_non_uuid_jti_rejected(self, user_id):
-        forged = _sign(_claims(user_id, jti="not-a-uuid"))
+    @pytest.mark.parametrize("claim", ["jti", "fid"])
+    def test_non_uuid_id_claim_rejected(self, user_id, token_type, claim):
+        forged = _sign(_claims(user_id, token_type=token_type, **{claim: "not-a-uuid"}))
         with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "access")
-        with pytest.raises(InvalidTokenError):
-            JsonWebToken.decode(forged, "refresh")
+            JsonWebToken.decode(forged, token_type)

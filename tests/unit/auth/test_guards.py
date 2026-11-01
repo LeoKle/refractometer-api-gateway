@@ -72,15 +72,7 @@ class TestGetUserInvalidToken:
     def test_refresh_token_raises_401(self, regular_user):
         repo = FakeUserRepository([regular_user])
 
-        refresh_token = JsonWebToken(
-            iss="test-issuer",
-            sub=regular_user.id,
-            aud="test-audience",
-            iat=1,
-            exp=2,
-            token_type="refresh",
-            jti=uuid.uuid4(),
-        )
+        refresh_token = JsonWebToken.refresh(regular_user.id)
 
         with (
             patch.object(
@@ -102,15 +94,7 @@ class TestGetUserAuthorization:
     def test_user_not_found_raises_401(self, regular_user):
         repo = FakeUserRepository([])
 
-        token = JsonWebToken(
-            iss="test-issuer",
-            sub=regular_user.id,
-            aud="test-audience",
-            iat=1,
-            exp=2,
-            token_type="access",
-            jti=uuid.uuid4(),
-        )
+        token = JsonWebToken.access(regular_user.id)
 
         with (
             patch.object(
@@ -130,15 +114,7 @@ class TestGetUserAuthorization:
     def test_user_without_access_flag_raises_403(self, no_access_user):
         repo = FakeUserRepository([no_access_user])
 
-        token = JsonWebToken(
-            iss="test-issuer",
-            sub=no_access_user.id,
-            aud="test-audience",
-            iat=1,
-            exp=2,
-            token_type="access",
-            jti=uuid.uuid4(),
-        )
+        token = JsonWebToken.access(no_access_user.id)
 
         with (
             patch.object(
@@ -158,15 +134,7 @@ class TestGetUserAuthorization:
     def test_valid_token_and_authorized_user_returns_user(self, regular_user):
         repo = FakeUserRepository([regular_user])
 
-        token = JsonWebToken(
-            iss="test-issuer",
-            sub=regular_user.id,
-            aud="test-audience",
-            iat=1,
-            exp=2,
-            token_type="access",
-            jti=uuid.uuid4(),
-        )
+        token = JsonWebToken.access(regular_user.id)
 
         with patch.object(
             JsonWebToken,
@@ -184,15 +152,7 @@ class TestGetUserAuthorization:
     def test_admin_user_with_access_returns_user(self, admin_user):
         repo = FakeUserRepository([admin_user])
 
-        token = JsonWebToken(
-            iss="test-issuer",
-            sub=admin_user.id,
-            aud="test-audience",
-            iat=1,
-            exp=2,
-            token_type="access",
-            jti=uuid.uuid4(),
-        )
+        token = JsonWebToken.access(admin_user.id)
 
         with patch.object(
             JsonWebToken,
