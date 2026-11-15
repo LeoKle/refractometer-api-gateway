@@ -154,6 +154,14 @@ def auth_refresh(
 
 
 @router.post("/logout")
-def logout(response: Response):
+@inject
+def logout(
+    response: Response,
+    auth_service: Annotated[
+        AuthServiceInterface, Depends(Provide[DependencyContainer.auth_service])
+    ],
+    refresh_token: Annotated[str | None, Cookie(alias=get_settings().COOKIE_NAME_REFRESH)] = None,
+):
+    auth_service.logout(refresh_token)
     response.delete_cookie(get_settings().COOKIE_NAME_ACCESS, path="/")
     response.delete_cookie(get_settings().COOKIE_NAME_REFRESH, path="/")

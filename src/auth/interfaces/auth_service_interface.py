@@ -58,3 +58,6 @@ class AuthServiceInterface(ABC):
 
     @abstractmethod
     def refresh(self, refresh_token: str | None) -> AuthModel: ...
+
+    @abstractmethod
+    def logout(self, refresh_token: str | None) -> None: ...

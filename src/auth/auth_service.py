@@ -152,3 +152,18 @@ class AuthService(AuthServiceInterface):
             access=access_token.encode(),
             refresh=refresh_token.encode(),
         )
+
+    def logout(self, refresh_token: str | None) -> None:
+        if refresh_token is None:
+            return
+
+        try:
+            token = JsonWebToken.decode(refresh_token, "refresh")
+        except InvalidTokenError:
+            logger.info("Logout with an invalid or expired refresh token")
+            return
+
+        try:
+            self.refresh_repo.revoke_family(token.sub, token.fid)
+        except Exception as e:
+            raise InfrastructureUnavailableError from e

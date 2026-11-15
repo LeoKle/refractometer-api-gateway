@@ -65,6 +65,10 @@ class FailingRefreshTokenRepository(MockRefreshTokenRepository):
         msg = "store is down"
         raise RuntimeError(msg)
 
+    def revoke_family(self, user_id, family_id):
+        msg = "store is down"
+        raise RuntimeError(msg)
+
 
 def make_user(*, access: bool = True, email: str = USER_EMAIL, id: uuid.UUID | None = None) -> User:
     return User(id=id or uuid.uuid4(), email=email, name="Test User", admin=False, access=access)
@@ -490,3 +494,149 @@ class TestRefreshInfrastructureFailures:
 
         with pytest.raises(InfrastructureUnavailableError):
             broken.refresh(session.refresh_token)
+
+
+class TestLogout:
+    def test_revokes_the_session(self, service, session):
+        service.logout(session.refresh_token)
+
+        with pytest.raises(InvalidSessionError):
+            service.refresh(session.refresh_token)
+
+    def test_removes_the_family_from_the_store(self, service, session, refresh_repo):
+        fid = decode(session.refresh_token, "refresh").fid
+
+        service.logout(session.refresh_token)
+
+        assert fid not in refresh_repo.families
+
+    def test_works_with_a_rotated_refresh_token(self, service, session, refresh_repo):
+        """After a refresh, the newest token is the one the browser holds."""
+        rotated = service.refresh(session.refresh_token)
+
+        service.logout(rotated.refresh)
+
+        assert refresh_repo.families == {}
+        with pytest.raises(InvalidSessionError):
+            service.refresh(rotated.refresh)
+
+    def test_only_the_current_session_is_revoked(self, service, user, session):
+        other_device = login(service)
+
+        service.logout(session.refresh_token)
+
+        assert isinstance(service.refresh(other_device.refresh_token), AuthModel)
+
+    def test_is_idempotent(self, service, session):
+        service.logout(session.refresh_token)
+        service.logout(session.refresh_token)  # must not raise
+
+    def test_already_revoked_family_does_not_raise(self, service, session, user, refresh_repo):
+        refresh_repo.revoke_family(user.id, decode(session.refresh_token, "refresh").fid)
+
+        service.logout(session.refresh_token)
+
+    def test_unregistered_family_does_not_raise(self, service, user):
+        """Validly signed, but the store has never heard of it (e.g. store was wiped)."""
+        service.logout(JsonWebToken.refresh(user.id).encode())
+
+    def test_still_revokes_when_the_user_no_longer_exists(
+        self, service, session, user, user_repo, refresh_repo
+    ):
+        """Logout depends only on the token, not on the user record."""
+        user_repo.delete(user.id)
+
+        service.logout(session.refresh_token)
+
+        assert refresh_repo.families == {}
+
+    def test_still_revokes_when_the_user_has_lost_access(
+        self, service, session, user, user_repo, refresh_repo
+    ):
+        user_repo.users[user.id] = make_user(access=False, id=user.id)
+
+        service.logout(session.refresh_token)
+
+        assert refresh_repo.families == {}
+
+
+class TestLogoutBadTokens:
+    """A bad token is not an error (the user wants out either way), but it must
+    never revoke anything."""
+
+    def test_missing_token(self, service, session, refresh_repo):
+        service.logout(None)
+
+        assert len(refresh_repo.families) == 1
+
+    def test_garbage_token(self, service, session, refresh_repo):
+        service.logout("not.a.jwt")
+
+        assert len(refresh_repo.families) == 1
+
+    def test_expired_token(self, service, session, user, refresh_repo):
+        fid = decode(session.refresh_token, "refresh").fid
+        expired = JsonWebToken.create(
+            user.id, "refresh", timedelta(minutes=-1), family_id=fid
+        ).encode()
+
+        service.logout(expired)
+
+        assert fid in refresh_repo.families
+
+    def test_access_token_does_not_revoke(self, service, session, refresh_repo):
+        """Access tokens carry the same fid, but logout only acts on refresh tokens."""
+        service.logout(session.access_token)
+
+        assert len(refresh_repo.families) == 1
+        assert isinstance(service.refresh(session.refresh_token), AuthModel)
+
+    def test_token_signed_with_another_secret_does_not_revoke(
+        self, service, session, user, refresh_repo
+    ):
+        original = decode(session.refresh_token, "refresh")
+        forged = jwt.encode(
+            {
+                "iss": TEST_ISSUER,
+                "sub": str(user.id),
+                "aud": TEST_AUDIENCE,
+                "iat": int(original.iat),
+                "exp": int(original.exp),
+                "jti": str(uuid.uuid4()),
+                "fid": str(original.fid),
+                "token_type": "refresh",
+            },
+            "another-secret-that-is-also-long-enough-to-avoid-key-length-warnings",
+            algorithm=TEST_ALGORITHM,
+        )
+
+        service.logout(forged)
+
+        assert original.fid in refresh_repo.families
+
+    def test_logs_never_contain_token_strings(self, service, session, caplog):
+        caplog.set_level(logging.DEBUG)
+
+        service.logout("not.a.jwt")
+        service.logout(session.refresh_token)
+
+        assert session.refresh_token not in caplog.text
+        assert session.access_token not in caplog.text
+
+
+class TestLogoutInfrastructureFailures:
+    def test_store_outage_is_not_swallowed(self, provider, user_repo, user):
+        """If the session could not be revoked, the caller must find out: reporting
+        success would leave a live session behind a 'logged out' UI."""
+        session = login(AuthService(provider, user_repo, MockRefreshTokenRepository()))
+        broken = AuthService(provider, user_repo, FailingRefreshTokenRepository())
+
+        with pytest.raises(InfrastructureUnavailableError):
+            broken.logout(session.refresh_token)
+
+    def test_bad_token_does_not_touch_the_store(self, provider, user_repo):
+        """A broken store must not turn a harmless no-op logout into an error."""
+        broken = AuthService(provider, user_repo, FailingRefreshTokenRepository())
+
+        broken.logout(None)
+        broken.logout("not.a.jwt")
