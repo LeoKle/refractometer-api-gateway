@@ -1,13 +1,13 @@
 from urllib.parse import urlencode
 
 import httpx
-from pydantic import BaseModel, SecretStr, ValidationError
+from pydantic import BaseModel, SecretStr, TypeAdapter, ValidationError
 
 from auth.interfaces.oauth_provider_interface import (
     AuthResponseData,
     OAuthExchangeError,
-    OAuthNetworkError,
     OAuthProviderInterface,
+    OAuthUnavailableError,
     OAuthUserDataError,
     UserData,
 )
@@ -30,6 +30,18 @@ class GitHubEmailObject(BaseModel):
     email: str
     primary: bool
     verified: bool
+
+
+class GitHubTokenResponse(BaseModel):
+    """a successful response from the token endpoint"""
+
+    token_type: str
+    access_token: str
+    expires_in: int | None = None
+    refresh_token: str | None = None
+
+
+_EMAIL_LIST = TypeAdapter(list[GitHubEmailObject])
 
 
 class GitHubOAuthProvider(OAuthProviderInterface):
@@ -77,34 +89,44 @@ class GitHubOAuthProvider(OAuthProviderInterface):
                 response = client.post(
                     self.TOKEN_URL, data=payload, headers={"Accept": "application/json"}
                 )
-                response.raise_for_status()
-                data = response.json()
-        except httpx.HTTPStatusError as err:
-            msg = f"GitHub rejected the code exchange (status {err.response.status_code})"
-            raise OAuthExchangeError(msg) from err
         except httpx.HTTPError as err:
             msg = "Could not reach GitHub to exchange code"
-            raise OAuthNetworkError(msg) from err
-        except ValueError as err:  # response.json() failed to parse
-            msg = "GitHub returned a non-JSON response"
+            raise OAuthUnavailableError(msg) from err
+
+        if response.is_server_error:
+            msg = f"GitHub failed the code exchange (status {response.status_code})"
+            raise OAuthUnavailableError(msg)
+
+        try:
+            data = response.json()
+        except ValueError as err:
+            msg = f"GitHub returned a non-JSON response (status {response.status_code})"
             raise OAuthExchangeError(msg) from err
 
-        if "error" in data:
+        # RFC 6749 section 5.2 error responses come as 400 with an "error" member;
+        # GitHub additionally sends them with status 200.
+        if isinstance(data, dict) and "error" in data:
             msg = (
                 f"GitHub rejected the code exchange: {data.get('error_description', data['error'])}"
             )
             raise OAuthExchangeError(msg)
 
+        if not response.is_success:
+            msg = f"GitHub rejected the code exchange (status {response.status_code})"
+            raise OAuthExchangeError(msg)
+
         try:
-            return AuthResponseData(
-                token_type=data["token_type"],
-                access_token=data["access_token"],
-                expires_in=data.get("expires_in"),
-                refresh_token=data.get("refresh_token"),
-            )
-        except (KeyError, ValidationError) as err:
+            token = GitHubTokenResponse.model_validate(data)
+        except ValidationError as err:
             msg = f"GitHub's token response was missing an expected field: {err}"
             raise OAuthExchangeError(msg) from err
+
+        return AuthResponseData(
+            token_type=token.token_type,
+            access_token=token.access_token,
+            expires_in=token.expires_in,
+            refresh_token=token.refresh_token,
+        )
 
     def get_user_data(self, access_token: str) -> UserData:
         headers = {
@@ -112,28 +134,13 @@ class GitHubOAuthProvider(OAuthProviderInterface):
             "Authorization": f"Bearer {access_token}",
         }
 
-        try:
-            with httpx.Client(timeout=REQUEST_TIMEOUT) as client:
-                user_response = client.get("https://api.github.com/user", headers=headers)
-                user_response.raise_for_status()
-                raw_user = user_response.json()
-
-                email_response = client.get("https://api.github.com/user/emails", headers=headers)
-                email_response.raise_for_status()
-                raw_emails = email_response.json()
-        except httpx.HTTPStatusError as err:
-            msg = f"GitHub rejected the user data request (status {err.response.status_code})"
-            raise OAuthUserDataError(msg) from err
-        except httpx.HTTPError as err:
-            msg = "Could not reach GitHub to fetch user data"
-            raise OAuthNetworkError(msg) from err
-        except ValueError as err:
-            msg = "GitHub returned a non-JSON response"
-            raise OAuthUserDataError(msg) from err
+        with httpx.Client(timeout=REQUEST_TIMEOUT) as client:
+            raw_user = self._get_json(client, "https://api.github.com/user", headers)
+            raw_emails = self._get_json(client, "https://api.github.com/user/emails", headers)
 
         try:
-            user = GithubUserResponse(**raw_user)
-            emails = [GitHubEmailObject(**e) for e in raw_emails]
+            user = GithubUserResponse.model_validate(raw_user)
+            emails = _EMAIL_LIST.validate_python(raw_emails)
         except ValidationError as err:
             msg = f"Unexpected shape from GitHub's user API: {err}"
             raise OAuthUserDataError(msg) from err
@@ -150,3 +157,25 @@ class GitHubOAuthProvider(OAuthProviderInterface):
             name=user.name,
             raw={"user": raw_user, "emails": raw_emails},
         )
+
+    @staticmethod
+    def _get_json(client: httpx.Client, url: str, headers: dict[str, str]) -> object:
+        try:
+            response = client.get(url, headers=headers)
+        except httpx.HTTPError as err:
+            msg = f"Could not reach GitHub ({url})"
+            raise OAuthUnavailableError(msg) from err
+
+        if response.is_server_error:
+            msg = f"GitHub failed the user data request (status {response.status_code})"
+            raise OAuthUnavailableError(msg)
+
+        if not response.is_success:
+            msg = f"GitHub rejected the user data request (status {response.status_code})"
+            raise OAuthUserDataError(msg)
+
+        try:
+            return response.json()
+        except ValueError as err:
+            msg = "GitHub returned a non-JSON response"
+            raise OAuthUserDataError(msg) from err

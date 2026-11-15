@@ -3,7 +3,7 @@ import pytest
 
 from auth.interfaces.oauth_provider_interface import (
     OAuthExchangeError,
-    OAuthNetworkError,
+    OAuthUnavailableError,
     OAuthUserDataError,
 )
 from auth.oauth_transaction import PKCECodeChallenge
@@ -105,8 +105,24 @@ class TestExchangeCode:
         with pytest.raises(OAuthExchangeError):
             provider.exchange_code(code="bad-code", code_verifier="verifier")
 
-    def test_5xx_status_raises_exchange_error(self, provider, respx_mock):
+    def test_5xx_status_raises_unavailable_error(self, provider, respx_mock):
         respx_mock.post(TOKEN_URL).mock(return_value=httpx.Response(500))
+
+        with pytest.raises(OAuthUnavailableError):
+            provider.exchange_code(code="abc", code_verifier="verifier")
+
+    def test_rfc6749_error_body_on_400_is_reported(self, provider, respx_mock):
+        respx_mock.post(TOKEN_URL).mock(
+            return_value=httpx.Response(
+                400, json={"error": "invalid_grant", "error_description": "code expired"}
+            )
+        )
+
+        with pytest.raises(OAuthExchangeError, match="code expired"):
+            provider.exchange_code(code="abc", code_verifier="verifier")
+
+    def test_non_object_json_raises_exchange_error(self, provider, respx_mock):
+        respx_mock.post(TOKEN_URL).mock(return_value=httpx.Response(200, json=["unexpected"]))
 
         with pytest.raises(OAuthExchangeError):
             provider.exchange_code(code="abc", code_verifier="verifier")
@@ -114,13 +130,13 @@ class TestExchangeCode:
     def test_connection_failure_raises_network_error(self, provider, respx_mock):
         respx_mock.post(TOKEN_URL).mock(side_effect=httpx.ConnectError("connection refused"))
 
-        with pytest.raises(OAuthNetworkError):
+        with pytest.raises(OAuthUnavailableError):
             provider.exchange_code(code="abc", code_verifier="verifier")
 
     def test_timeout_raises_network_error(self, provider, respx_mock):
         respx_mock.post(TOKEN_URL).mock(side_effect=httpx.TimeoutException("timed out"))
 
-        with pytest.raises(OAuthNetworkError):
+        with pytest.raises(OAuthUnavailableError):
             provider.exchange_code(code="abc", code_verifier="verifier")
 
     def test_non_json_response_raises_exchange_error(self, provider, respx_mock):
@@ -231,14 +247,27 @@ class TestGetUserData:
     def test_connection_failure_raises_network_error(self, provider, respx_mock):
         respx_mock.get(USER_URL).mock(side_effect=httpx.ConnectError("connection refused"))
 
-        with pytest.raises(OAuthNetworkError):
+        with pytest.raises(OAuthUnavailableError):
+            provider.get_user_data(access_token="gho_abc123")
+
+    def test_user_endpoint_5xx_raises_unavailable_error(self, provider, respx_mock):
+        respx_mock.get(USER_URL).mock(return_value=httpx.Response(502))
+
+        with pytest.raises(OAuthUnavailableError):
+            provider.get_user_data(access_token="gho_abc123")
+
+    def test_non_list_emails_raises_user_data_error(self, provider, respx_mock):
+        respx_mock.get(USER_URL).mock(return_value=httpx.Response(200, json=user_payload()))
+        respx_mock.get(EMAILS_URL).mock(return_value=httpx.Response(200, json={"oops": 1}))
+
+        with pytest.raises(OAuthUserDataError):
             provider.get_user_data(access_token="gho_abc123")
 
     def test_connection_failure_on_emails_call_raises_network_error(self, provider, respx_mock):
         respx_mock.get(USER_URL).mock(return_value=httpx.Response(200, json=user_payload()))
         respx_mock.get(EMAILS_URL).mock(side_effect=httpx.ConnectError("connection refused"))
 
-        with pytest.raises(OAuthNetworkError):
+        with pytest.raises(OAuthUnavailableError):
             provider.get_user_data(access_token="gho_abc123")
 
     def test_non_json_response_raises_user_data_error(self, provider, respx_mock):

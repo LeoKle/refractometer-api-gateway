@@ -5,15 +5,17 @@ from auth.oauth_transaction import PKCECodeChallenge
 
 
 class OAuthError(Exception):
-    """Base for all provider-facing OAuth failures."""
+    """Base for all provider-facing OAuth failures. Implementations must not let
+    transport or parsing exceptions (httpx, JSON, pydantic) escape."""
 
 
-class OAuthNetworkError(OAuthError):
-    """Could not reach the provider at all (connection, timeout, DNS)."""
+class OAuthUnavailableError(OAuthError):
+    """The provider could not be reached (connection, timeout, DNS) or answered
+    with a server error (5xx). Retrying later may succeed."""
 
 
 class OAuthExchangeError(OAuthError):
-    """The provider rejected or malformed-responded to the code exchange."""
+    """The provider rejected the code exchange or answered with something unusable."""
 
 
 class OAuthUserDataError(OAuthError):
@@ -45,7 +47,17 @@ class OAuthProviderInterface(ABC):
     ) -> str: ...
 
     @abstractmethod
-    def exchange_code(self, code: str, code_verifier: str) -> AuthResponseData: ...
+    def exchange_code(self, code: str, code_verifier: str) -> AuthResponseData:
+        """
+        :raises OAuthUnavailableError: provider unreachable or erroring
+        :raises OAuthExchangeError: provider rejected the code or answered unusably
+        """
+        ...
 
     @abstractmethod
-    def get_user_data(self, access_token: str) -> UserData: ...
+    def get_user_data(self, access_token: str) -> UserData:
+        """
+        :raises OAuthUnavailableError: provider unreachable or erroring
+        :raises OAuthUserDataError: identity missing, malformed or unusable
+        """
+        ...
