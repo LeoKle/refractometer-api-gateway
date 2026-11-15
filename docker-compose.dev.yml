@@ -23,5 +23,14 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:8.12-rc3-trixie
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  redis-data:

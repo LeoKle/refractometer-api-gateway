@@ -19,6 +19,8 @@ class BaseSettings(PydanticBaseSettings):
     DB_URL: str
     DB_ECHO: bool = False
 
+    REDIS_URL: str
+
     COOKIE_NAME_ACCESS: str = "refractometer_access"
     COOKIE_NAME_REFRESH: str = "refractometer_refresh"
     COOKIE_NAME_OAUTH_TRANSACTION: str = "refractometer_oauth"
@@ -65,6 +67,7 @@ class TestSettings(BaseSettings):
     ENV: EnvType = EnvType.test
 
     DB_URL: str = ""
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     JWT_ALGORITHM: Literal["HS256", "EdDSA"] = "HS256"
     JWT_PRIVATE_KEY: SecretStr = SecretStr("supersecret")
@@ -82,6 +85,7 @@ class DevSettings(BaseSettings):
     ENV: EnvType = EnvType.dev
 
     DB_URL: str = "postgresql://refractometer:password@localhost:5432/refractometer-api-gateway"
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     JWT_ALGORITHM: Literal["HS256", "EdDSA"] = "HS256"
     JWT_PRIVATE_KEY: SecretStr = SecretStr("supersecret")
