@@ -60,6 +60,9 @@ class BaseSettings(PydanticBaseSettings):
     IMAGE_CLIENT_URL: str
     IMAGE_CLIENT_TIMEOUT: float = 2.0
 
+    RESULT_CLIENT_URL: str
+    RESULT_CLIENT_TIMEOUT: float = 2.0
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
@@ -84,6 +87,7 @@ class TestSettings(BaseSettings):
     OAUTH_REDIRECT_URL: str = ""
 
     IMAGE_CLIENT_URL: str = ""
+    RESULT_CLIENT_URL: str = ""
 
 
 class DevSettings(BaseSettings):
