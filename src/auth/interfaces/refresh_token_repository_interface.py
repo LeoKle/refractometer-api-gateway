@@ -6,17 +6,15 @@ from auth.tokens import JsonWebToken
 
 
 class RefreshTokenRotationResult(StrEnum):
-    """"""
-
-    """The presented token was the family's current one and has been replaced."""
     OK = "ok"
+    """The presented token was the family's current one and has been replaced."""
 
+    REUSE = "reuse"
     """The family exists but the presented token is not its current one: it was
     already rotated away, so it is a replay. The family has been revoked."""
-    UNKNOWN = "unknown"
 
+    UNKNOWN = "unknown"
     """No such family: expired, logged out, revoked, or never issued."""
-    REUSE = "reuse"
 
 
 class RefreshTokenRepositoryInterface(ABC):
