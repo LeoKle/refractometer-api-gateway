@@ -6,10 +6,11 @@ from fastapi.responses import RedirectResponse
 
 from auth.api.auth_responses import UserInfoResponse
 from auth.exceptions import (
-    AuthenticationError,
     AuthProviderUnavailableError,
+    InfrastructureUnavailableError,
     InvalidLoginTransactionError,
     InvalidSessionError,
+    LoginRejectedError,
 )
 from auth.guards import get_user
 from auth.interfaces.auth_service_interface import (
@@ -23,7 +24,6 @@ from auth.oauth_transaction import (
 from containers.dependencies import DependencyContainer
 from settings import get_settings
 from users.user import User
-from users.user_repository_interface import UserRepositoryInterface
 
 router = APIRouter(prefix="/auth")
 
@@ -97,15 +97,20 @@ def auth_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Login failed",
         ) from None
+    except LoginRejectedError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authentication failed",
+        ) from None
     except AuthProviderUnavailableError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Login provider unavailable",
         ) from None
-    except AuthenticationError:
+    except InfrastructureUnavailableError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authentication failed",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable",
         ) from None
 
     response = RedirectResponse(login_result.redirect_to)
@@ -131,10 +136,6 @@ def get_user_endpoint(
 @inject
 def auth_refresh(
     response: Response,
-    user_repository: Annotated[
-        UserRepositoryInterface,
-        Depends(Provide[DependencyContainer.user_repository]),
-    ],
     auth_service: Annotated[
         AuthServiceInterface,
         Depends(Provide[DependencyContainer.auth_service]),
@@ -145,7 +146,14 @@ def auth_refresh(
         tokens: AuthModel = auth_service.refresh(refresh_token)
     except InvalidSessionError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unable to refresh tokens"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unable to refresh tokens",
+        ) from None
+    except InfrastructureUnavailableError:
+        # never 401 here: the client would discard a session that is still valid
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable",
         ) from None
 
     _set_auth_cookies(
@@ -164,6 +172,13 @@ def logout(
     ],
     refresh_token: Annotated[str | None, Cookie(alias=get_settings().COOKIE_NAME_REFRESH)] = None,
 ):
-    auth_service.logout(refresh_token)
+    try:
+        auth_service.logout(refresh_token)
+    except InfrastructureUnavailableError:
+        # keep the cookies: the session is still live, so the client should retry
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable",
+        ) from None
     response.delete_cookie(get_settings().COOKIE_NAME_ACCESS, path="/")
     response.delete_cookie(get_settings().COOKIE_NAME_REFRESH, path="/")
