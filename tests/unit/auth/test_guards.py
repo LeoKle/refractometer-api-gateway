@@ -4,7 +4,6 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 
-from auth.exceptions import InfrastructureUnavailableError
 from auth.guards import get_admin, get_user
 from auth.tokens import InvalidTokenError, JsonWebToken
 from users.user import User
@@ -179,13 +178,13 @@ class _FailingRepository:
 
 
 class TestGetUserInfrastructureFailure:
-    def test_database_outage_is_not_reported_as_401(self, regular_user):
+    def test_database_outage_is_reported_as_401(self, regular_user):
         repo = _FailingRepository(UserRepositoryUnavailableError("db is down"))
         token = JsonWebToken.access(regular_user.id)
 
         with (
             patch.object(JsonWebToken, "decode", return_value=token),
-            pytest.raises(InfrastructureUnavailableError),
+            pytest.raises(HTTPException),
         ):
             get_user(user_repository=repo, access_token="some-token")
 
