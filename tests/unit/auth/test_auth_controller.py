@@ -17,6 +17,8 @@ from settings import get_settings
 
 LEAK = "internal error / detail that must not reach the client"
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def auth_service():

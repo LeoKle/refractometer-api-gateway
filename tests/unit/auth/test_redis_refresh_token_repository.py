@@ -18,6 +18,8 @@ from auth.tokens import JsonWebToken
 
 REFRESH_LIFETIME = 60 * 60  # seconds
 
+pytestmark = pytest.mark.unit
+
 
 def family_key(fid: uuid.UUID) -> str:
     return f"{KEY_PREFIX}:family:{fid}"

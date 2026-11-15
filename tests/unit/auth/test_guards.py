@@ -9,6 +9,8 @@ from auth.tokens import InvalidTokenError, JsonWebToken
 from users.user import User
 from users.user_repository_interface import UserRepositoryError, UserRepositoryUnavailableError
 
+pytestmark = pytest.mark.unit
+
 
 class FakeUserRepository:
     def __init__(self, users: list[User] | None = None):

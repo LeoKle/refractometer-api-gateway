@@ -19,6 +19,8 @@ from pydantic import SecretStr, ValidationError
 from auth.tokens import InvalidTokenError, JsonWebToken
 from settings import get_settings
 
+pytestmark = pytest.mark.unit
+
 
 def _ed25519_pair() -> tuple[str, str]:
     key = Ed25519PrivateKey.generate()

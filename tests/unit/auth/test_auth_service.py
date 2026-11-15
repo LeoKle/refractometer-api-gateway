@@ -42,6 +42,9 @@ from users.user_repository_interface import (
     UserRepositoryUnavailableError,
 )
 
+pytestmark = pytest.mark.unit
+
+
 TEST_ALGORITHM = "HS256"
 TEST_PRIVATE_KEY = SecretStr(
     "test-secret-that-is-at-least-64-bytes-long-so-pyjwt-does-not-throw-warnings"

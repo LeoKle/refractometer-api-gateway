@@ -16,6 +16,8 @@ from auth.oauth_transaction import (
 )
 from settings import get_settings
 
+pytestmark = pytest.mark.unit
+
 
 def test_generate_code_verifier():
     code_verifier = _generate_code_verifier()
