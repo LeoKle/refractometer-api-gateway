@@ -6,6 +6,7 @@ from auth.interfaces.auth_service_interface import (
     AuthModel,
     AuthProviderUnavailableError,
     AuthServiceInterface,
+    InfrastructureUnavailableError,
     InvalidLoginTransactionError,
     InvalidSessionError,
     LoginResult,
@@ -19,6 +20,10 @@ from auth.interfaces.oauth_provider_interface import (
     OAuthUserDataError,
     UserData,
 )
+from auth.interfaces.refresh_token_repository_interface import (
+    RefreshTokenRepositoryInterface,
+    RefreshTokenRotationResult,
+)
 from auth.oauth_transaction import create_transaction, decode_transaction, encode_transaction
 from auth.tokens import InvalidTokenError, JsonWebToken
 from users.user import User
@@ -28,9 +33,15 @@ logger = logging.getLogger(__name__)
 
 
 class AuthService(AuthServiceInterface):
-    def __init__(self, oauth_provider: OAuthProviderInterface, user_repo: UserRepositoryInterface):
+    def __init__(
+        self,
+        oauth_provider: OAuthProviderInterface,
+        user_repo: UserRepositoryInterface,
+        refresh_token_repo: RefreshTokenRepositoryInterface,
+    ):
         self.oauth_provider = oauth_provider
         self.user_repo = user_repo
+        self.refresh_repo = refresh_token_repo
 
     def start_login(self, redirect_to: str | None) -> LoginStart:
         transaction, code_challenge = create_transaction(redirect_to)
@@ -103,10 +114,25 @@ class AuthService(AuthServiceInterface):
             logger.info("Refresh denied, user %s has no access", user.id)
             raise InvalidSessionError
 
-        new_access = JsonWebToken.access(user.id)
-        new_refresh = JsonWebToken.refresh(user.id)
+        new_access = JsonWebToken.access(user.id, family_id=token.fid)
+        new_refresh = JsonWebToken.refresh(user.id, family_id=token.fid)
 
-        # TODO: token rotation
+        try:
+            outcome: RefreshTokenRotationResult = self.refresh_repo.rotate(token, new_refresh)
+        except Exception as e:
+            raise InfrastructureUnavailableError from e
+        else:
+            if outcome == RefreshTokenRotationResult.REUSE:
+                logger.warning(
+                    "Refresh token reuse detected, family revoked (user=%s, family=%s)",
+                    user.id,
+                    token.fid,
+                )
+            elif outcome == RefreshTokenRotationResult.UNKNOWN:
+                logger.info("Refresh with unknown or revoked family %s", token.fid)
+
+            if outcome != RefreshTokenRotationResult.OK:
+                raise InvalidSessionError
 
         return AuthModel(access=new_access.encode(), refresh=new_refresh.encode())
 
@@ -119,6 +145,8 @@ class AuthService(AuthServiceInterface):
 
         refresh_token = JsonWebToken.refresh(user_id=user.id)
         access_token = JsonWebToken.access(user.id, family_id=refresh_token.fid)
+
+        self.refresh_repo.start(refresh_token)
 
         return AuthModel(
             access=access_token.encode(),

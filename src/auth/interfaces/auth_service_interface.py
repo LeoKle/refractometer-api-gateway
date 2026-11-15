@@ -13,6 +13,10 @@ class AuthProviderUnavailableError(AuthenticationError):
     AuthenticationError so callers can map this to 503 instead of 400/401."""
 
 
+class InfrastructureUnavailableError(AuthenticationError):
+    """Infrastructure the AuthService requires, such as DB is unavailable"""
+
+
 class InvalidLoginTransactionError(AuthenticationError): ...
 
 
