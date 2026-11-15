@@ -5,7 +5,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 import fakeredis
 import pytest
+import redis
+import redis.exceptions as rex
 
+from auth.interfaces.refresh_token_repository_interface import (
+    RefreshTokenRepositoryError,
+    RefreshTokenRepositoryUnavailableError,
+)
 from auth.interfaces.refresh_token_repository_interface import RefreshTokenRotationResult as Result
 from auth.redis_refresh_token_repository import KEY_PREFIX, RedisRefreshTokenRepository
 from auth.tokens import JsonWebToken
@@ -350,3 +356,81 @@ class TestConcurrency:
 
         # Someone presented the token more than once, so the session must be dead.
         assert not redis_client.exists(family_key(token.fid))
+
+
+class TestStoreOutage:
+    """redis-py errors must not leak: callers only see the contract's errors."""
+
+    @pytest.fixture
+    def down_repo(self) -> RedisRefreshTokenRepository:
+        server = fakeredis.FakeServer()
+        server.connected = False
+        return RedisRefreshTokenRepository(fakeredis.FakeRedis(server=server))
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda repo, t: repo.start(t),
+            lambda repo, t: repo.rotate(t, next_token(t)),
+            lambda repo, t: repo.revoke_family(t.sub, t.fid),
+            lambda repo, t: repo.revoke_all_for_user(t.sub),
+        ],
+        ids=["start", "rotate", "revoke_family", "revoke_all_for_user"],
+    )
+    def test_unreachable_store_is_unavailable(self, down_repo, user_id, call):
+        token = make_token(user_id)
+
+        with pytest.raises(RefreshTokenRepositoryUnavailableError) as exc:
+            call(down_repo, token)
+
+        assert isinstance(exc.value.__cause__, redis.RedisError)
+
+
+class TestErrorTranslation:
+    """Errors are classified, so callers can tell "retry later" from "needs a fix"."""
+
+    @pytest.mark.parametrize(
+        ("error", "expected"),
+        [
+            # transient
+            (rex.ConnectionError, RefreshTokenRepositoryUnavailableError),
+            (rex.TimeoutError, RefreshTokenRepositoryUnavailableError),
+            (rex.MaxConnectionsError, RefreshTokenRepositoryUnavailableError),
+            (rex.BusyLoadingError, RefreshTokenRepositoryUnavailableError),
+            (rex.ReadOnlyError, RefreshTokenRepositoryUnavailableError),
+            (rex.TryAgainError, RefreshTokenRepositoryUnavailableError),
+            (rex.ClusterDownError, RefreshTokenRepositoryUnavailableError),
+            (rex.MasterDownError, RefreshTokenRepositoryUnavailableError),
+            (rex.OutOfMemoryError, RefreshTokenRepositoryUnavailableError),
+            # permanent; the first two subclass ConnectionError in redis-py
+            (rex.AuthenticationError, RefreshTokenRepositoryError),
+            (rex.AuthorizationError, RefreshTokenRepositoryError),
+            (rex.NoPermissionError, RefreshTokenRepositoryError),
+            (rex.ResponseError, RefreshTokenRepositoryError),
+            (rex.DataError, RefreshTokenRepositoryError),
+            (rex.InvalidResponse, RefreshTokenRepositoryError),
+        ],
+        ids=lambda v: v.__name__,
+    )
+    def test_classification(self, repo, redis_client, user_id, monkeypatch, error, expected):
+        cause = error("simulated")
+
+        def fail(*args, **kwargs):
+            raise cause
+
+        monkeypatch.setattr(redis_client, "zrange", fail)
+
+        with pytest.raises(RefreshTokenRepositoryError) as exc:
+            repo.revoke_all_for_user(user_id)
+
+        assert type(exc.value) is expected
+        assert exc.value.__cause__ is cause
+
+    def test_unexpected_script_result(self, repo, user_id, monkeypatch):
+        token = make_token(user_id)
+        monkeypatch.setattr(repo, "_rotate", lambda **_: 7)
+
+        with pytest.raises(RefreshTokenRepositoryError) as exc:
+            repo.rotate(token, next_token(token))
+
+        assert type(exc.value) is RefreshTokenRepositoryError

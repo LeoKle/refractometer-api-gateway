@@ -5,6 +5,16 @@ from enum import StrEnum
 from auth.tokens import JsonWebToken
 
 
+class RefreshTokenRepositoryError(Exception):
+    """Base for every failure of the refresh token repository."""
+
+
+class RefreshTokenRepositoryUnavailableError(RefreshTokenRepositoryError):
+    """the repository is unreachable, timed out, out of connections,
+    still loading, failing over (read-only, cluster down) or out of memory.
+    The same operation may succeed when retried later."""
+
+
 class RefreshTokenRotationResult(StrEnum):
     OK = "ok"
     """The presented token was the family's current one and has been replaced."""
