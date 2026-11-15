@@ -11,7 +11,8 @@ from settings import get_settings
 REQUIRED_CLAIMS = ["iss", "sub", "aud", "iat", "exp", "jti", "fid"]
 
 
-class InvalidTokenError(Exception): ...
+class InvalidTokenError(Exception):
+    """The token is malformed, expired, forged, or of the wrong type."""
 
 
 TokenType = Literal["access", "refresh"]
@@ -53,10 +54,12 @@ class JsonWebToken(BaseModel):
 
             decoded = cls(**payload)
         except (ValidationError, PyJWTError) as err:
-            raise InvalidTokenError() from err
+            msg = "token failed verification"
+            raise InvalidTokenError(msg) from err
 
         if decoded.token_type != expected_type:
-            raise InvalidTokenError()
+            msg = f"expected a {expected_type} token, got {decoded.token_type}"
+            raise InvalidTokenError(msg)
 
         return decoded
 

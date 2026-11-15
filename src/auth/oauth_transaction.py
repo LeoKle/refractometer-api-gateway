@@ -5,12 +5,16 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
 import jwt
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from settings import get_settings
 
 TRANSACTION_TYPE = "oauth_transaction"
 TRANSACTION_TTL_MINUTES = 10
+
+
+class InvalidTransactionError(Exception):
+    """The transaction token is malformed, expired, forged or not a transaction."""
 
 
 class OAuthTransaction(BaseModel):
@@ -84,24 +88,25 @@ def encode_transaction(transaction: OAuthTransaction) -> str:
     )
 
 
-def decode_transaction(token: str) -> OAuthTransaction | None:
+def decode_transaction(token: str) -> OAuthTransaction:
+    """:raises InvalidTransactionError: if the token is not a valid, unexpired transaction"""
     try:
         payload = jwt.decode(
             token,
             get_settings().JWT_PUBLIC_KEY,
             algorithms=[get_settings().JWT_ALGORITHM],
+            options={"require": ["exp"]},
         )
-    except jwt.PyJWTError:
-        return None
+    except jwt.PyJWTError as err:
+        msg = "transaction token failed verification"
+        raise InvalidTransactionError(msg) from err
 
     if payload.get("type") != TRANSACTION_TYPE:
-        return None
+        msg = "token is not an oauth transaction"
+        raise InvalidTransactionError(msg)
 
     try:
-        return OAuthTransaction(
-            state=payload["state"],
-            code_verifier=payload["code_verifier"],
-            redirect_to=payload["redirect_to"],
-        )
-    except KeyError:
-        return None
+        return OAuthTransaction.model_validate(payload)
+    except ValidationError as err:
+        msg = "transaction token has missing or malformed fields"
+        raise InvalidTransactionError(msg) from err

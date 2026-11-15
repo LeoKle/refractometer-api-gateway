@@ -1,35 +1,57 @@
 import logging
 import secrets
+from collections.abc import Generator
+from contextlib import contextmanager
 
-from auth.interfaces.auth_service_interface import (
-    AuthenticationError,
-    AuthModel,
+from auth.exceptions import (
     AuthProviderUnavailableError,
-    AuthServiceInterface,
     InfrastructureUnavailableError,
     InvalidLoginTransactionError,
     InvalidSessionError,
+    LoginRejectedError,
+)
+from auth.interfaces.auth_service_interface import (
+    AuthModel,
+    AuthServiceInterface,
     LoginResult,
     LoginStart,
 )
 from auth.interfaces.oauth_provider_interface import (
-    AuthResponseData,
-    OAuthExchangeError,
-    OAuthNetworkError,
+    OAuthError,
     OAuthProviderInterface,
-    OAuthUserDataError,
+    OAuthUnavailableError,
     UserData,
 )
 from auth.interfaces.refresh_token_repository_interface import (
     RefreshTokenRepositoryInterface,
+    RefreshTokenRepositoryUnavailableError,
     RefreshTokenRotationResult,
 )
-from auth.oauth_transaction import create_transaction, decode_transaction, encode_transaction
+from auth.oauth_transaction import (
+    InvalidTransactionError,
+    OAuthTransaction,
+    create_transaction,
+    decode_transaction,
+    encode_transaction,
+)
 from auth.tokens import InvalidTokenError, JsonWebToken
 from users.user import User
-from users.user_repository_interface import UserRepositoryInterface
+from users.user_repository_interface import (
+    UserAlreadyExistsError,
+    UserRepositoryInterface,
+    UserRepositoryUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _infrastructure(operation: str) -> Generator[None]:
+    try:
+        yield
+    except (UserRepositoryUnavailableError, RefreshTokenRepositoryUnavailableError) as err:
+        logger.exception("AuthService: %s failed", operation)
+        raise InfrastructureUnavailableError(operation) from err
 
 
 class AuthService(AuthServiceInterface):
@@ -51,61 +73,24 @@ class AuthService(AuthServiceInterface):
         return LoginStart(url=url, transaction=encode_transaction(transaction))
 
     def complete_login(self, code: str, state: str | None, transaction: str | None) -> LoginResult:
-        if transaction is None:
-            logger.info("Login callback without a transaction cookie")
-            raise InvalidLoginTransactionError
+        oauth_transaction = self._verify_transaction(state, transaction)
+        user_data = self._fetch_identity(code, oauth_transaction.code_verifier)
+        tokens = self._upsert_user_and_generate_tokens(user_data)
 
-        oauth_transaction = decode_transaction(transaction)
-
-        if oauth_transaction is None:
-            logger.info("Login callback with an invalid or expired transaction")
-            raise InvalidLoginTransactionError
-
-        if not state or not secrets.compare_digest(state, oauth_transaction.state):
-            logger.info("State missing or not equal to expected transaction state")
-            raise InvalidLoginTransactionError
-
-        code_verifier = oauth_transaction.code_verifier
-
-        try:
-            auth_data: AuthResponseData = self.oauth_provider.exchange_code(code, code_verifier)
-        except OAuthNetworkError as err:
-            logger.exception("AuthService: provider unreachable during code exchange")
-            raise AuthProviderUnavailableError from err
-        except OAuthExchangeError as err:
-            logger.warning("AuthService: code exchange rejected: %s", err)
-            raise AuthenticationError from err
-
-        try:
-            user_data: UserData = self.oauth_provider.get_user_data(auth_data.access_token)
-        except OAuthNetworkError as err:
-            logger.exception("AuthService: provider unreachable during user data fetch")
-            raise AuthProviderUnavailableError from err
-        except OAuthUserDataError as err:
-            logger.warning("AuthService: user data rejected: %s", err)
-            raise AuthenticationError from err
-
-        tokens: AuthModel = self._upsert_user_and_generate_tokens(user_data)
-
-        login_result = LoginResult(
+        return LoginResult(
             access_token=tokens.access,
             refresh_token=tokens.refresh,
             redirect_to=oauth_transaction.redirect_to,
         )
 
-        return login_result
-
-    def refresh(self, refresh_token: str | None):
-        if refresh_token is None:
+    def refresh(self, refresh_token: str | None) -> AuthModel:
+        token = self._decode_refresh_token(refresh_token)
+        if token is None:
             raise InvalidSessionError
 
-        try:
-            token = JsonWebToken.decode(refresh_token, "refresh")
-        except InvalidTokenError:
-            logger.info("Invalid refresh token")
-            raise InvalidSessionError from None
+        with _infrastructure("user lookup"):
+            user = self.user_repo.get_by_id(token.sub)
 
-        user = self.user_repo.get_by_id(token.sub)
         if user is None:
             logger.info("Refresh for unknown user %s", token.sub)
             raise InvalidSessionError
@@ -117,53 +102,97 @@ class AuthService(AuthServiceInterface):
         new_access = JsonWebToken.access(user.id, family_id=token.fid)
         new_refresh = JsonWebToken.refresh(user.id, family_id=token.fid)
 
-        try:
-            outcome: RefreshTokenRotationResult = self.refresh_repo.rotate(token, new_refresh)
-        except Exception as e:
-            raise InfrastructureUnavailableError from e
-        else:
-            if outcome == RefreshTokenRotationResult.REUSE:
+        with _infrastructure("refresh token rotation"):
+            outcome = self.refresh_repo.rotate(token, new_refresh)
+
+        match outcome:
+            case RefreshTokenRotationResult.OK:
+                return AuthModel(access=new_access.encode(), refresh=new_refresh.encode())
+            case RefreshTokenRotationResult.REUSE:
                 logger.warning(
                     "Refresh token reuse detected, family revoked (user=%s, family=%s)",
                     user.id,
                     token.fid,
                 )
-            elif outcome == RefreshTokenRotationResult.UNKNOWN:
+            case RefreshTokenRotationResult.UNKNOWN:
                 logger.info("Refresh with unknown or revoked family %s", token.fid)
 
-            if outcome != RefreshTokenRotationResult.OK:
-                raise InvalidSessionError
+        raise InvalidSessionError
 
-        return AuthModel(access=new_access.encode(), refresh=new_refresh.encode())
+    def logout(self, refresh_token: str | None) -> None:
+        token = self._decode_refresh_token(refresh_token)
+        if token is None:
+            return
+
+        with _infrastructure("session revocation"):
+            self.refresh_repo.revoke_family(token.sub, token.fid)
+
+    @staticmethod
+    def _verify_transaction(state: str | None, transaction: str | None) -> OAuthTransaction:
+        if transaction is None:
+            logger.info("Login callback without a transaction cookie")
+            raise InvalidLoginTransactionError
+
+        try:
+            oauth_transaction = decode_transaction(transaction)
+        except InvalidTransactionError as err:
+            logger.info("Login callback with an invalid transaction: %s", err)
+            raise InvalidLoginTransactionError from None
+
+        if not state or not secrets.compare_digest(state, oauth_transaction.state):
+            logger.info("State missing or not equal to expected transaction state")
+            raise InvalidLoginTransactionError
+
+        return oauth_transaction
+
+    def _fetch_identity(self, code: str, code_verifier: str) -> UserData:
+        try:
+            auth_data = self.oauth_provider.exchange_code(code, code_verifier)
+            return self.oauth_provider.get_user_data(auth_data.access_token)
+        except OAuthUnavailableError as err:
+            logger.exception("AuthService: OAuth provider unavailable")
+            raise AuthProviderUnavailableError from err
+        except OAuthError as err:
+            logger.warning("AuthService: OAuth provider rejected the login: %s", err)
+            raise LoginRejectedError from err
+
+    @staticmethod
+    def _decode_refresh_token(refresh_token: str | None) -> JsonWebToken | None:
+        """Return the verified refresh token, or None if absent or invalid."""
+        if refresh_token is None:
+            return None
+
+        try:
+            return JsonWebToken.decode(refresh_token, "refresh")
+        except InvalidTokenError as err:
+            logger.info("Rejected refresh token: %s", err)
+            return None
+
+    def _get_or_create_user(self, user_data: UserData) -> User:
+        user = self.user_repo.get_by_email(user_data.email)
+        if user is not None:
+            return user
+
+        try:
+            return self.user_repo.create(User(email=user_data.email, name=user_data.name))
+        except UserAlreadyExistsError:
+            user = self.user_repo.get_by_email(user_data.email)
+            if user is None:
+                raise
+            logger.info("AuthService: user created concurrently, reusing it")
+            return user
 
     def _upsert_user_and_generate_tokens(self, user_data: UserData) -> AuthModel:
-        user = self.user_repo.get_by_email(user_data.email)
-
-        if not user:
-            user = User(email=user_data.email, name=user_data.name)
-            user = self.user_repo.create(user)
+        with _infrastructure("user upsert"):
+            user = self._get_or_create_user(user_data)
 
         refresh_token = JsonWebToken.refresh(user_id=user.id)
         access_token = JsonWebToken.access(user.id, family_id=refresh_token.fid)
 
-        self.refresh_repo.start(refresh_token)
+        with _infrastructure("session start"):
+            self.refresh_repo.start(refresh_token)
 
         return AuthModel(
             access=access_token.encode(),
             refresh=refresh_token.encode(),
         )
-
-    def logout(self, refresh_token: str | None) -> None:
-        if refresh_token is None:
-            return
-
-        try:
-            token = JsonWebToken.decode(refresh_token, "refresh")
-        except InvalidTokenError:
-            logger.info("Logout with an invalid or expired refresh token")
-            return
-
-        try:
-            self.refresh_repo.revoke_family(token.sub, token.fid)
-        except Exception as e:
-            raise InfrastructureUnavailableError from e

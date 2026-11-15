@@ -3,26 +3,6 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field
 
 
-class AuthenticationError(Exception):
-    """Raised when authentication fails for a reason the caller can't retry
-    by itself (bad code, provider rejected the account, etc.)."""
-
-
-class AuthProviderUnavailableError(AuthenticationError):
-    """The OAuth provider couldn't be reached or is erroring. Distinct from
-    AuthenticationError so callers can map this to 503 instead of 400/401."""
-
-
-class InfrastructureUnavailableError(AuthenticationError):
-    """Infrastructure the AuthService requires, such as DB is unavailable"""
-
-
-class InvalidLoginTransactionError(AuthenticationError): ...
-
-
-class InvalidSessionError(AuthenticationError): ...
-
-
 class AuthModel(BaseModel):
     access: str
     refresh: str
@@ -53,11 +33,25 @@ class AuthServiceInterface(ABC):
         :param str code: The authorization code from the OAuthProvider
         :param str state: The CSRF state
         :param str | None transaction: The transaction JWT
+        :raises InvalidLoginTransactionError: transaction missing/invalid or state mismatch
+        :raises LoginRejectedError: the provider rejected the code or the identity
+        :raises AuthProviderUnavailableError: the provider is unreachable or erroring
+        :raises InfrastructureUnavailableError: user database or token store failed
         """
         ...
 
     @abstractmethod
-    def refresh(self, refresh_token: str | None) -> AuthModel: ...
+    def refresh(self, refresh_token: str | None) -> AuthModel:
+        """
+        :raises InvalidSessionError: the token is not (or no longer) a valid session
+        :raises InfrastructureUnavailableError: user database or token store failed
+        """
+        ...
 
     @abstractmethod
-    def logout(self, refresh_token: str | None) -> None: ...
+    def logout(self, refresh_token: str | None) -> None:
+        """A missing or invalid token is a no-op, not an error.
+
+        :raises InfrastructureUnavailableError: the session could not be revoked
+        """
+        ...

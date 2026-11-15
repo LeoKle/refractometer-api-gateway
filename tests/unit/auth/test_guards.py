@@ -4,9 +4,11 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 
+from auth.exceptions import InfrastructureUnavailableError
 from auth.guards import get_admin, get_user
 from auth.tokens import InvalidTokenError, JsonWebToken
 from users.user import User
+from users.user_repository_interface import UserRepositoryError, UserRepositoryUnavailableError
 
 
 class FakeUserRepository:
@@ -166,6 +168,38 @@ class TestGetUserAuthorization:
 
         assert result.id == admin_user.id
         assert result.admin is True
+
+
+class _FailingRepository:
+    def __init__(self, error: Exception):
+        self.error = error
+
+    def get_by_id(self, user_id):
+        raise self.error
+
+
+class TestGetUserInfrastructureFailure:
+    def test_database_outage_is_not_reported_as_401(self, regular_user):
+        repo = _FailingRepository(UserRepositoryUnavailableError("db is down"))
+        token = JsonWebToken.access(regular_user.id)
+
+        with (
+            patch.object(JsonWebToken, "decode", return_value=token),
+            pytest.raises(InfrastructureUnavailableError),
+        ):
+            get_user(user_repository=repo, access_token="some-token")
+
+    def test_permanent_database_error_is_not_an_outage(self, regular_user):
+        repo = _FailingRepository(UserRepositoryError("schema mismatch"))
+        token = JsonWebToken.access(regular_user.id)
+
+        with (
+            patch.object(JsonWebToken, "decode", return_value=token),
+            pytest.raises(UserRepositoryError) as exc,
+        ):
+            get_user(user_repository=repo, access_token="some-token")
+
+        assert type(exc.value) is UserRepositoryError
 
 
 class TestGetAdmin:

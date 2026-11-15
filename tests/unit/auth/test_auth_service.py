@@ -11,20 +11,24 @@ import pytest
 from pydantic import SecretStr
 
 from auth.auth_service import AuthService  # adjust to wherever AuthService lives
-from auth.interfaces.auth_service_interface import (
-    AuthenticationError,
-    AuthModel,
+from auth.exceptions import (
+    AuthError,
     AuthProviderUnavailableError,
     InfrastructureUnavailableError,
     InvalidLoginTransactionError,
     InvalidSessionError,
-    LoginResult,
+    LoginRejectedError,
 )
+from auth.interfaces.auth_service_interface import AuthModel, LoginResult
 from auth.interfaces.oauth_provider_interface import (
     OAuthExchangeError,
-    OAuthNetworkError,
     OAuthProviderInterface,
+    OAuthUnavailableError,
     OAuthUserDataError,
+)
+from auth.interfaces.refresh_token_repository_interface import (
+    RefreshTokenRepositoryError,
+    RefreshTokenRepositoryUnavailableError,
 )
 from auth.oauth_transaction import OAuthTransaction, decode_transaction, encode_transaction
 from auth.tokens import JsonWebToken
@@ -32,6 +36,11 @@ from settings import get_settings
 from tests.mocks.mock_refresh_token_repository import MockRefreshTokenRepository
 from tests.mocks.mock_user_repository import MockUserRepository
 from users.user import User
+from users.user_repository_interface import (
+    UserAlreadyExistsError,
+    UserRepositoryError,
+    UserRepositoryUnavailableError,
+)
 
 TEST_ALGORITHM = "HS256"
 TEST_PRIVATE_KEY = SecretStr(
@@ -61,13 +70,48 @@ def pinned_settings(monkeypatch):
 
 
 class FailingRefreshTokenRepository(MockRefreshTokenRepository):
+    """Behaves like a store that is down, per the repository contract."""
+
+    def __init__(self, error: Exception | None = None):
+        super().__init__()
+        self.error = error or RefreshTokenRepositoryUnavailableError("store is down")
+
+    def start(self, token):
+        raise self.error
+
     def rotate(self, presented, new):
-        msg = "store is down"
-        raise RuntimeError(msg)
+        raise self.error
 
     def revoke_family(self, user_id, family_id):
-        msg = "store is down"
-        raise RuntimeError(msg)
+        raise self.error
+
+
+class FailingUserRepository(MockUserRepository):
+    """Behaves like a failing database, per the repository contract."""
+
+    def __init__(self, error: Exception | None = None):
+        super().__init__()
+        self.error = error or UserRepositoryUnavailableError("db is down")
+
+    def get_by_id(self, id):
+        raise self.error
+
+    def get_by_email(self, email):
+        raise self.error
+
+
+class RacingUserRepository(MockUserRepository):
+    """Another request creates the same user between our read and our insert."""
+
+    def __init__(self, winner: User | None):
+        super().__init__()
+        self.winner = winner
+
+    def create(self, user):
+        if self.winner is not None:
+            self.users[self.winner.id] = self.winner
+        msg = "duplicate email"
+        raise UserAlreadyExistsError(msg)
 
 
 def make_user(*, access: bool = True, email: str = USER_EMAIL, id: uuid.UUID | None = None) -> User:
@@ -292,7 +336,7 @@ class TestCompleteLoginTransactionErrors:
 
 class TestCompleteLoginProviderErrors:
     def test_network_error_during_code_exchange(self, service, provider):
-        provider.exchange_code.side_effect = OAuthNetworkError()
+        provider.exchange_code.side_effect = OAuthUnavailableError()
 
         with pytest.raises(AuthProviderUnavailableError):
             login(service)
@@ -300,14 +344,11 @@ class TestCompleteLoginProviderErrors:
     def test_rejected_code_exchange(self, service, provider):
         provider.exchange_code.side_effect = OAuthExchangeError()
 
-        with pytest.raises(AuthenticationError) as exc:
+        with pytest.raises(LoginRejectedError):
             login(service)
 
-        # Plain AuthenticationError, not one of its subclasses
-        assert type(exc.value) is AuthenticationError
-
     def test_network_error_during_user_data_fetch(self, service, provider):
-        provider.get_user_data.side_effect = OAuthNetworkError()
+        provider.get_user_data.side_effect = OAuthUnavailableError()
 
         with pytest.raises(AuthProviderUnavailableError):
             login(service)
@@ -315,17 +356,25 @@ class TestCompleteLoginProviderErrors:
     def test_rejected_user_data(self, service, provider):
         provider.get_user_data.side_effect = OAuthUserDataError()
 
-        with pytest.raises(AuthenticationError) as exc:
+        with pytest.raises(LoginRejectedError):
             login(service)
 
-        assert type(exc.value) is AuthenticationError
+    def test_provider_error_is_chained(self, service, provider):
+        """The original provider error stays available for logs/debugging."""
+        original = OAuthExchangeError("bad_verification_code")
+        provider.exchange_code.side_effect = original
+
+        with pytest.raises(LoginRejectedError) as exc:
+            login(service)
+
+        assert exc.value.__cause__ is original
 
     @pytest.mark.parametrize(
         ("target", "error"),
         [
-            ("exchange_code", OAuthNetworkError),
+            ("exchange_code", OAuthUnavailableError),
             ("exchange_code", OAuthExchangeError),
-            ("get_user_data", OAuthNetworkError),
+            ("get_user_data", OAuthUnavailableError),
             ("get_user_data", OAuthUserDataError),
         ],
     )
@@ -334,7 +383,7 @@ class TestCompleteLoginProviderErrors:
     ):
         getattr(provider, target).side_effect = error()
 
-        with pytest.raises(AuthenticationError):
+        with pytest.raises(AuthError):
             login(service)
 
         assert user_repo.users == {}
@@ -344,6 +393,57 @@ class TestCompleteLoginProviderErrors:
         provider.exchange_code.side_effect = RuntimeError("bug")
 
         with pytest.raises(RuntimeError):
+            login(service)
+
+
+class TestCompleteLoginInfrastructureFailures:
+    def test_user_database_outage(self, provider, refresh_repo):
+        service = AuthService(provider, FailingUserRepository(), refresh_repo)
+
+        with pytest.raises(InfrastructureUnavailableError):
+            login(service)
+
+        assert refresh_repo.families == {}
+
+    def test_token_store_outage(self, provider, user_repo):
+        service = AuthService(provider, user_repo, FailingRefreshTokenRepository())
+
+        with pytest.raises(InfrastructureUnavailableError):
+            login(service)
+
+    @pytest.mark.parametrize(
+        "error",
+        [RefreshTokenRepositoryError("ACL denied"), KeyError("bug")],
+        ids=["permanent-store-error", "bug"],
+    )
+    def test_only_transient_store_errors_are_outages(self, provider, user_repo, error):
+        """Permanent failures and bugs need a fix, not a retry: they must not become 503."""
+        service = AuthService(provider, user_repo, FailingRefreshTokenRepository(error))
+
+        with pytest.raises(type(error)):
+            login(service)
+
+    def test_permanent_database_errors_are_not_outages(self, provider, refresh_repo):
+        error = UserRepositoryError("schema mismatch")
+        service = AuthService(provider, FailingUserRepository(error), refresh_repo)
+
+        with pytest.raises(UserRepositoryError) as exc:
+            login(service)
+
+        assert exc.value is error
+
+    def test_concurrent_first_login_reuses_the_winning_user(self, provider, refresh_repo):
+        winner = make_user()
+        service = AuthService(provider, RacingUserRepository(winner), refresh_repo)
+
+        result = login(service)
+
+        assert decode(result.access_token, "access").sub == winner.id
+
+    def test_conflict_without_a_winner_is_not_swallowed(self, provider, refresh_repo):
+        service = AuthService(provider, RacingUserRepository(None), refresh_repo)
+
+        with pytest.raises(UserAlreadyExistsError):
             login(service)
 
 
@@ -493,6 +593,22 @@ class TestRefreshInfrastructureFailures:
         broken = AuthService(provider, user_repo, FailingRefreshTokenRepository())
 
         with pytest.raises(InfrastructureUnavailableError):
+            broken.refresh(session.refresh_token)
+
+    def test_user_database_outage(self, provider, user_repo, refresh_repo, user):
+        session = login(AuthService(provider, user_repo, refresh_repo))
+        broken = AuthService(provider, FailingUserRepository(), refresh_repo)
+
+        with pytest.raises(InfrastructureUnavailableError):
+            broken.refresh(session.refresh_token)
+
+        assert refresh_repo.rotate_calls == 0
+
+    def test_unexpected_store_errors_are_not_disguised_as_outages(self, provider, user_repo, user):
+        session = login(AuthService(provider, user_repo, MockRefreshTokenRepository()))
+        broken = AuthService(provider, user_repo, FailingRefreshTokenRepository(KeyError("bug")))
+
+        with pytest.raises(KeyError):
             broken.refresh(session.refresh_token)
 
 

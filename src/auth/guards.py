@@ -3,11 +3,12 @@ from typing import Annotated
 from dependency_injector.wiring import Provide, inject
 from fastapi import Cookie, Depends, HTTPException, status
 
+from auth.exceptions import InfrastructureUnavailableError
 from auth.tokens import InvalidTokenError, JsonWebToken
 from containers.dependencies import DependencyContainer
 from settings import get_settings
 from users.user import User
-from users.user_repository_interface import UserRepositoryInterface
+from users.user_repository_interface import UserRepositoryInterface, UserRepositoryUnavailableError
 
 
 @inject
@@ -35,7 +36,12 @@ def get_user(
     if token.token_type != "access":
         raise credentials_exception from None
 
-    user = user_repository.get_by_id(token.sub)
+    try:
+        user = user_repository.get_by_id(token.sub)
+    except UserRepositoryUnavailableError as err:
+        # 503 via auth.api.exception_handlers, never 401: an outage must not log users out
+        msg = "user lookup"
+        raise InfrastructureUnavailableError(msg) from err
 
     if user is None:
         raise credentials_exception from None
