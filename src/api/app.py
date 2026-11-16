@@ -4,6 +4,7 @@ from api.image import image_controller
 from api.queue import queue_controller
 from api.result import result_controller
 from api.router import main_router
+from api.sample import sample_controller
 from auth.api import auth_controller
 from containers.dependencies import DependencyContainer
 
@@ -17,4 +18,12 @@ def health():
 
 
 container = DependencyContainer()
-container.wire(modules=[auth_controller, image_controller, result_controller, queue_controller])
+container.wire(
+    modules=[
+        auth_controller,
+        image_controller,
+        result_controller,
+        queue_controller,
+        sample_controller,
+    ]
+)
