@@ -5,6 +5,7 @@ from api.queue import queue_controller
 from api.result import result_controller
 from api.router import main_router
 from api.sample import sample_controller
+from api.spectrum import spectrum_controller
 from auth.api import auth_controller
 from containers.dependencies import DependencyContainer
 
@@ -25,5 +26,6 @@ container.wire(
         result_controller,
         queue_controller,
         sample_controller,
+        spectrum_controller,
     ]
 )

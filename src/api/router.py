@@ -6,6 +6,7 @@ from .image.image_controller import image_router
 from .queue.queue_controller import queue_router
 from .result.result_controller import result_router
 from .sample.sample_controller import sample_router
+from .spectrum.spectrum_controller import spectrum_router
 
 main_router = APIRouter(prefix="/api")
 main_router.include_router(auth_router)
@@ -13,3 +14,4 @@ main_router.include_router(image_router)
 main_router.include_router(result_router)
 main_router.include_router(queue_router)
 main_router.include_router(sample_router)
+main_router.include_router(spectrum_router)
