@@ -66,6 +66,12 @@ class BaseSettings(PydanticBaseSettings):
     QUEUE_CLIENT_URL: str
     QUEUE_CLIENT_TIMEOUT: float = 2.0
 
+    SPECTRUM_CLIENT_URL: str
+    SPECTRUM_CLIENT_TIMEOUT: float = 2.0
+
+    SAMPLE_CLIENT_URL: str
+    SAMPLE_CLIENT_TIMEOUT: float = 2.0
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
@@ -92,6 +98,8 @@ class TestSettings(BaseSettings):
     IMAGE_CLIENT_URL: str = ""
     RESULT_CLIENT_URL: str = ""
     QUEUE_CLIENT_URL: str = ""
+    SPECTRUM_CLIENT_URL: str = ""
+    SAMPLE_CLIENT_URL: str = ""
 
 
 class DevSettings(BaseSettings):

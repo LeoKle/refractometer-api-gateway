@@ -3,6 +3,8 @@ from redis import Redis
 from refractometer_common.image import ImageClient
 from refractometer_common.queue import QueueClient
 from refractometer_common.result import SimulationResultClient
+from refractometer_common.sample import SampleClient
+from refractometer_common.spectrum import SpectrumClient
 
 from auth.auth_service import AuthService
 from auth.providers.github_oauth_provider import GitHubOAuthProvider
@@ -59,4 +61,16 @@ class DependencyContainer(containers.DeclarativeContainer):
         QueueClient,
         base_url=config.QUEUE_CLIENT_URL,
         timeout=config.QUEUE_CLIENT_TIMEOUT,
+    )
+
+    spectrum_client = providers.Factory(
+        SpectrumClient,
+        base_url=config.SPECTRUM_CLIENT_URL,
+        timeout=config.SPECTRUM_CLIENT_TIMEOUT,
+    )
+
+    sample_client = providers.Factory(
+        SampleClient,
+        base_url=config.SAMPLE_CLIENT_URL,
+        timeout=config.SAMPLE_CLIENT_TIMEOUT,
     )
