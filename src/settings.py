@@ -63,6 +63,9 @@ class BaseSettings(PydanticBaseSettings):
     RESULT_CLIENT_URL: str
     RESULT_CLIENT_TIMEOUT: float = 2.0
 
+    QUEUE_CLIENT_URL: str
+    QUEUE_CLIENT_TIMEOUT: float = 2.0
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
@@ -88,6 +91,7 @@ class TestSettings(BaseSettings):
 
     IMAGE_CLIENT_URL: str = ""
     RESULT_CLIENT_URL: str = ""
+    QUEUE_CLIENT_URL: str = ""
 
 
 class DevSettings(BaseSettings):
