@@ -32,9 +32,6 @@ def get_user(
     except InvalidTokenError:
         raise credentials_exception from None
 
-    if token.token_type != "access":
-        raise credentials_exception from None
-
     try:
         user = user_repository.get_by_id(token.sub)
     except UserRepositoryUnavailableError as err:
