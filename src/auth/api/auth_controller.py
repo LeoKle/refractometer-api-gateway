@@ -35,7 +35,7 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
     cookie_defaults = {
         "httponly": True,
         "secure": get_settings().COOKIES_SECURE,
-        "samesite": "lax",
+        "samesite": "strict",
         "path": "/",
     }
     response.set_cookie(get_settings().COOKIE_NAME_ACCESS, access, **cookie_defaults)

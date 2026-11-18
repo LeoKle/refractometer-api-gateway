@@ -86,7 +86,7 @@ class TestLoginCallback:
         for name in (access_name, refresh_name):
             assert "HttpOnly" in headers[name]
             assert "Path=/" in headers[name]
-            assert "samesite=lax" in headers[name].lower()
+            assert "samesite=strict" in headers[name].lower()
         assert "Max-Age=0" in headers[tx_name]
         assert tx_name not in client.cookies
 
