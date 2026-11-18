@@ -53,7 +53,7 @@ select = [
     "PYI",   # flake8-pyi
     "Q",     # flake8-quotes
     "SIM",   # flake8-simplify
-    "TCH",   # flake8-typechecking
+    "TC",   # flake8-typechecking
     "PTH",   # flake8-use-pathlib
     "UP",    # pyupgrade
     "RUF",   # ruff-specific

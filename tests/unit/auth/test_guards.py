@@ -77,17 +77,10 @@ class TestGetUserInvalidToken:
 
         refresh_token = JsonWebToken.refresh(regular_user.id)
 
-        with (
-            patch.object(
-                JsonWebToken,
-                "decode",
-                return_value=refresh_token,
-            ),
-            pytest.raises(HTTPException) as exc_info,
-        ):
+        with pytest.raises(HTTPException) as exc_info:
             get_user(
                 user_repository=repo,
-                access_token="some-token",
+                access_token=refresh_token.encode(),
             )
 
         assert exc_info.value.status_code == 401
