@@ -1,27 +1,31 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: mongo-image
+  name: mongo-parameter
+  labels:
+    app: mongo-parameter
 spec:
   selector:
-    app: mongo-image
+    app: mongo-parameter
   ports:
     - port: 27017
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: mongo-image
+  name: mongo-parameter
+  labels:
+    app: mongo-parameter
 spec:
-  serviceName: mongo-image
+  serviceName: mongo-parameter
   replicas: 1
   selector:
     matchLabels:
-      app: mongo-image
+      app: mongo-parameter
   template:
     metadata:
       labels:
-        app: mongo-image
+        app: mongo-parameter
     spec:
       containers:
         - name: mongo
