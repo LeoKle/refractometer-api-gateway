@@ -32,6 +32,7 @@ spec:
       containers:
         - name: parameter-service
           image: ghcr.io/leokle/refractometer-backend-parameter-service:latest
+          imagePullPolicy: Always
           command: ["uvicorn"]
           args:
             - api.app:app
