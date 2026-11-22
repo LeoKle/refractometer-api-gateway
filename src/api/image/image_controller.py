@@ -37,6 +37,10 @@ def get_image(
         return ImageDTO.model_validate(result.model_dump())
     except ValidationError:
         logger.error("Image %s failed DTO validation", image_id, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Image service returned an invalid response",
+        ) from None
     except ImageNotFoundException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
