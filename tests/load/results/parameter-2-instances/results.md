@@ -27,8 +27,4 @@ increase Mongo Limit to 2 CPU 2Gi
 
 7718: FAIL req_failed == 1.24% - dial: i/o timeout errors
 
----
-
-increase timeout-keep-alive to 30s (from default 5s)
-
-9500: FAIL DB reaches CPU Limit
+7422: PASS
