@@ -139,6 +139,6 @@ def queue_simulation(
         except ValidationError:
             logger.error("Invalid response queueing simulation", exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Queue service returned an invalid response",
             ) from None
