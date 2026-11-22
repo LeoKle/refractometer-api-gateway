@@ -1,0 +1,300 @@
+{
+  "consumer": {
+    "name": "refractometer-common-layer"
+  },
+  "interactions": [
+    {
+      "description": "a request for an existing image",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "an image exists",
+          "params": {
+            "id": "123e4567-e89b-12d3-a456-426614174000"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/image/123e4567-e89b-12d3-a456-426614174000"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "shape": [
+              2,
+              2
+            ],
+            "values": [
+              [
+                0.1,
+                0.2
+              ],
+              [
+                0.3,
+                0.4
+              ]
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.shape[0]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.shape[1]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.values": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for an image that does not exist",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "no image exists",
+          "params": {
+            "id": "00000000-0000-0000-0000-000000000000"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/image/00000000-0000-0000-0000-000000000000"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "detail": "Image not found"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.detail": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for an image with an invalid UUID",
+      "pending": false,
+      "request": {
+        "method": "GET",
+        "path": "/api/image/not-a-uuid"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "detail": "Invalid UUID: not-a-uuid"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.detail": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 400
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to create an image",
+      "pending": false,
+      "request": {
+        "body": {
+          "content": {
+            "shape": [
+              2,
+              2
+            ],
+            "values": [
+              [
+                0.1,
+                0.2
+              ],
+              [
+                0.3,
+                0.4
+              ]
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/api/image"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "id": "7b1e9d3a-2c4f-4a6b-8e0d-5f7a9c1b3d2e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to create an image with an idempotency key",
+      "pending": false,
+      "request": {
+        "body": {
+          "content": {
+            "shape": [
+              2,
+              2
+            ],
+            "values": [
+              [
+                0.1,
+                0.2
+              ],
+              [
+                0.3,
+                0.4
+              ]
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ],
+          "idempotency-key": [
+            "pact-idempotency-key"
+          ]
+        },
+        "method": "POST",
+        "path": "/api/image"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "id": "7b1e9d3a-2c4f-4a6b-8e0d-5f7a9c1b3d2e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pactRust": {
+      "ffi": "0.5.13",
+      "models": "1.3.18"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "image-service"
+  }
+}

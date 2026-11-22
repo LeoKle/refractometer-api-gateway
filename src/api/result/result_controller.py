@@ -78,14 +78,16 @@ def get_result(
     ],
 ):
     try:
-        result = result_client.get_result(result_id=result_id)
+        result = result_client.get_result(result_id)
 
         try:
             response = SimulationResultDTO(**result.model_dump())
         except ValidationError:
             logger.error("Result %s failed DTO validation", result.id, exc_info=True)
-        else:
-            return response
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Result service returned an invalid response",
+            ) from None
 
     except SimulationResultClientTimeoutException:
         logger.warning("Timeout fetching  %s", result_id)

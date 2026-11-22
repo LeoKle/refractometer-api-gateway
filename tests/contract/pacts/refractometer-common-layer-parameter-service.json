@@ -1,0 +1,895 @@
+{
+  "consumer": {
+    "name": "refractometer-common-layer"
+  },
+  "interactions": [
+    {
+      "description": "a request for a sample that does not exist",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "no sample exists",
+          "params": {
+            "id": "00000000-0000-0000-0000-000000000000"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/sample/00000000-0000-0000-0000-000000000000"
+      },
+      "response": {
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for a spectrum that does not exist",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "no spectrum exists",
+          "params": {
+            "id": "00000000-0000-0000-0000-000000000000"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/spectrum/00000000-0000-0000-0000-000000000000"
+      },
+      "response": {
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for all samples",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "samples exist"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/samples"
+      },
+      "response": {
+        "body": {
+          "content": [
+            {
+              "id": "93162ee4-5716-4059-a8a8-fc02e125543f",
+              "name": "Test Sample PACT",
+              "sellmeier_coefficients": {
+                "B": [
+                  1.0,
+                  2.0,
+                  3.0
+                ],
+                "C": [
+                  1.0,
+                  2.0,
+                  3.0
+                ]
+              }
+            }
+          ],
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            },
+            "$[*].name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].sellmeier_coefficients.B": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 3,
+                  "min": 3
+                }
+              ]
+            },
+            "$[*].sellmeier_coefficients.C": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 3,
+                  "min": 3
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for all spectrums",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "spectrums exist"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/spectrums"
+      },
+      "response": {
+        "body": {
+          "content": [
+            {
+              "id": "4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90",
+              "intensities": [
+                0.2,
+                0.9,
+                0.4
+              ],
+              "name": "Test Spectrum PACT",
+              "wavelengths": [
+                400.0,
+                500.0,
+                600.0
+              ]
+            }
+          ],
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            },
+            "$[*].intensities": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$[*].name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].wavelengths": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for an existing sample",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a sample exists",
+          "params": {
+            "id": "93162ee4-5716-4059-a8a8-fc02e125543f"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/sample/93162ee4-5716-4059-a8a8-fc02e125543f"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "id": "93162ee4-5716-4059-a8a8-fc02e125543f",
+            "name": "Test Sample PACT",
+            "sellmeier_coefficients": {
+              "B": [
+                1.0,
+                2.0,
+                3.0
+              ],
+              "C": [
+                1.0,
+                2.0,
+                3.0
+              ]
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.sellmeier_coefficients.B": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 3,
+                  "min": 3
+                }
+              ]
+            },
+            "$.sellmeier_coefficients.C": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 3,
+                  "min": 3
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for an existing spectrum",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a spectrum exists",
+          "params": {
+            "id": "4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/spectrum/4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "id": "4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90",
+            "intensities": [
+              0.2,
+              0.9,
+              0.4
+            ],
+            "name": "Test Spectrum PACT",
+            "wavelengths": [
+              400.0,
+              500.0,
+              600.0
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            },
+            "$.intensities": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.wavelengths": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to create a sample",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "sample can be created"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "name": "Test Sample PACT POST",
+            "sellmeier_coefficients": {
+              "B": [
+                1.0,
+                2.0,
+                3.0
+              ],
+              "C": [
+                1.0,
+                2.0,
+                3.0
+              ]
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/api/sample"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "id": "7b1e9d3a-2c4f-4a6b-8e0d-5f7a9c1b3d2e",
+            "name": "Test Sample PACT POST",
+            "sellmeier_coefficients": {
+              "B": [
+                1.0,
+                2.0,
+                3.0
+              ],
+              "C": [
+                1.0,
+                2.0,
+                3.0
+              ]
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.sellmeier_coefficients.B": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 3,
+                  "min": 3
+                }
+              ]
+            },
+            "$.sellmeier_coefficients.C": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 3,
+                  "min": 3
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to create a spectrum",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "spectrum can be created"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "intensities": [
+              0.2,
+              0.9,
+              0.4
+            ],
+            "name": "Test Spectrum PACT POST",
+            "wavelengths": [
+              400.0,
+              500.0,
+              600.0
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/api/spectrum"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "id": "7b1e9d3a-2c4f-4a6b-8e0d-5f7a9c1b3d2e",
+            "intensities": [
+              0.2,
+              0.9,
+              0.4
+            ],
+            "name": "Test Spectrum PACT POST",
+            "wavelengths": [
+              400.0,
+              500.0,
+              600.0
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            },
+            "$.intensities": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.wavelengths": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to delete a sample",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a sample exists",
+          "params": {
+            "id": "93162ee4-5716-4059-a8a8-fc02e125543f"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "path": "/api/sample/93162ee4-5716-4059-a8a8-fc02e125543f"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to delete a spectrum",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a spectrum exists",
+          "params": {
+            "id": "4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "path": "/api/spectrum/4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to delete a spectrum that does not exist",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "no spectrum exists",
+          "params": {
+            "id": "00000000-0000-0000-0000-000000000000"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "path": "/api/spectrum/00000000-0000-0000-0000-000000000000"
+      },
+      "response": {
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to update a sample",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a sample exists",
+          "params": {
+            "id": "93162ee4-5716-4059-a8a8-fc02e125543f"
+          }
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "id": "93162ee4-5716-4059-a8a8-fc02e125543f",
+            "name": "Updated Sample",
+            "sellmeier_coefficients": {
+              "B": [
+                2.0,
+                3.0,
+                4.0
+              ],
+              "C": [
+                1.0,
+                2.0,
+                3.0
+              ]
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "PATCH",
+        "path": "/api/sample"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "id": "93162ee4-5716-4059-a8a8-fc02e125543f",
+            "name": "Updated Sample",
+            "sellmeier_coefficients": {
+              "B": [
+                1.0,
+                2.0,
+                3.0
+              ],
+              "C": [
+                1.0,
+                2.0,
+                3.0
+              ]
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.sellmeier_coefficients.B": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 3,
+                  "min": 3
+                }
+              ]
+            },
+            "$.sellmeier_coefficients.C": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 3,
+                  "min": 3
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request to update a spectrum",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a spectrum exists",
+          "params": {
+            "id": "4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90"
+          }
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "id": "4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90",
+            "intensities": [
+              0.2,
+              0.9,
+              0.4
+            ],
+            "name": "Updated Spectrum",
+            "wavelengths": [
+              400.0,
+              500.0,
+              600.0
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "PATCH",
+        "path": "/api/spectrum"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "id": "4f8c2a1e-6b3d-4e7a-9c5f-2d1b8e3a7c90",
+            "intensities": [
+              0.2,
+              0.9,
+              0.4
+            ],
+            "name": "Updated Spectrum",
+            "wavelengths": [
+              400.0,
+              500.0,
+              600.0
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12})$"
+                }
+              ]
+            },
+            "$.intensities": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.wavelengths": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pactRust": {
+      "ffi": "0.5.13",
+      "models": "1.3.18"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "parameter-service"
+  }
+}

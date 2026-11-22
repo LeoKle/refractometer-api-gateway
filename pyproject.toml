@@ -23,6 +23,7 @@ dependencies = [
 dev = [
     "faker>=40.43.0",
     "fakeredis[lua]>=2.40.0",
+    "pact-python>=3.4.0",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "respx>=0.23.1",
@@ -67,7 +68,11 @@ ignore = ["missing-trailing-comma"]
 testpaths = ["tests"]
 addopts = ["--cov-report=term", "--cov=src"]
 pythonpath = ["src", "."]
-markers = ["unit: unit tests", "integration: integration tests"]
+markers = [
+    "unit: unit tests",
+    "integration: integration tests",
+    "pact: provider contract tests",
+]
 
 [tool.uv.sources]
 refractometer-common-layer = { git = "https://github.com/LeoKle/refractometer-common-layer", tag = "v0.7.0" }

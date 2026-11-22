@@ -71,24 +71,16 @@ jobs:
           directory: ${{ env.DIRECTORY }}
           test_type: integration
 
-    #   - name: Setup contract tests
-    #     working-directory: ${{ env.DIRECTORY }}
-    #     run: docker compose -f docker-compose.pact.yml up -d
-    #     shell: bash
-        
-    #   - name: Run contract tests
-    #     uses: ./.github/actions/pytest
-    #     with:
-    #       directory: ${{ env.DIRECTORY }}
-    #       test_type: pact
-    #     env:
-    #       ENABLE_PACT_STATES: true
+      - name: Run contract tests
+        uses: ./.github/actions/pytest
+        with:
+          directory: ${{ env.DIRECTORY }}
+          test_type: pact
 
-    #   - name: Teardown contract tests
-    #     if: always()
-    #     working-directory: ${{ env.DIRECTORY }}
-    #     run: docker compose -f docker-compose.pact.yml down
-    #     shell: bash
+      - name: Check committed contracts are up to date
+        working-directory: ${{ env.DIRECTORY }}
+        run: git diff --exit-code -- tests/contract/pacts
+        shell: bash
 
       - name: Report coverage to OctoCov
         uses: k1LoW/octocov-action@v1
