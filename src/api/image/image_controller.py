@@ -13,11 +13,12 @@ from refractometer_common.image import (
     ImageNotFoundException,
 )
 
+from auth.guards import get_user
 from containers.dependencies import DependencyContainer
 
 from .image_dto import ImageDTO
 
-image_router = APIRouter(prefix="/image", tags=["Image"])
+image_router = APIRouter(prefix="/image", tags=["Image"], dependencies=[Depends(get_user)])
 
 
 logger = logging.getLogger(__name__)
