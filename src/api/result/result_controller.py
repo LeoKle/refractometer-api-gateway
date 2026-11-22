@@ -78,7 +78,7 @@ def get_result(
     ],
 ):
     try:
-        result = result_client.get_results()
+        result = result_client.get_result(result_id=result_id)
 
         try:
             response = SimulationResultDTO(**result.model_dump())
