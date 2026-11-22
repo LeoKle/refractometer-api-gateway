@@ -4,7 +4,6 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Annotated
 
-from api.sample.sample_request import SampleRequest
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ValidationError
@@ -20,6 +19,7 @@ from refractometer_common.sample import (
     SellmeierCoefficients,
 )
 
+from api.sample.sample_request import SampleRequest
 from api.sample.sample_response import SampleResponse
 from auth.guards import get_user
 from containers.dependencies import DependencyContainer
