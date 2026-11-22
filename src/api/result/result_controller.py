@@ -146,6 +146,12 @@ def delete_result(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Result service unavailable",
         ) from None
+    except SimulationResultClientInvalidResponseException:
+        logger.error("Invalid response deleting result %s", result_id, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Result service returned an invalid response",
+        ) from None
     except SimulationResultNotFoundException:
         logger.error("Connection error deleting result %s", result_id, exc_info=True)
         raise HTTPException(
