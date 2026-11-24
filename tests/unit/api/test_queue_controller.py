@@ -15,6 +15,7 @@ from refractometer_common.queue import (
 )
 
 from api.app import container
+from api.queue.queue_responses import SimulationQueueResponse
 from tests.unit.conftest import LEAK
 
 pytestmark = pytest.mark.unit
@@ -45,7 +46,9 @@ def make_element(
 
 
 def as_json(element: SimulationQueueElement) -> dict:
-    return element.model_dump(mode="json")
+    # The gateway response only exposes the fields of SimulationQueueResponse; internal
+    # queue-service fields (e.g. attempts, last_error) are intentionally not forwarded.
+    return element.model_dump(mode="json", include=set(SimulationQueueResponse.model_fields))
 
 
 @pytest.fixture
