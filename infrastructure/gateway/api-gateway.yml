@@ -155,7 +155,11 @@ data:
   OAUTH_SCOPES: "read:user user:email"
 
   SPECTRUM_CLIENT_URL: http://parameter-service
+  SPECTRUM_CLIENT_MAX_CONNECTIONS: "100"
+  SPECTRUM_CLIENT_MAX_KEEPALIVE_CONNECTIONS: "100"
   SAMPLE_CLIENT_URL: http://parameter-service
+  SAMPLE_CLIENT_MAX_CONNECTIONS: "100"
+  SAMPLE_CLIENT_MAX_KEEPALIVE_CONNECTIONS: "100"
 
   IMAGE_CLIENT_URL: http://image-service
   RESULT_CLIENT_URL: http://results-service
