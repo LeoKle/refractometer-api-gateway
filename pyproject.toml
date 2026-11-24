@@ -24,6 +24,7 @@ dev = [
     "faker>=40.43.0",
     "fakeredis[lua]>=2.40.0",
     "pact-python>=3.4.0",
+    "numpy>=2.5.4",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "respx>=0.23.1",
@@ -54,7 +55,7 @@ select = [
     "PYI",   # flake8-pyi
     "Q",     # flake8-quotes
     "SIM",   # flake8-simplify
-    "TC",   # flake8-typechecking
+    "TC",    # flake8-typechecking
     "PTH",   # flake8-use-pathlib
     "UP",    # pyupgrade
     "RUF",   # ruff-specific
