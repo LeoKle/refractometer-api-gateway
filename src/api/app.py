@@ -1,3 +1,6 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from api.image import image_controller
@@ -9,7 +12,17 @@ from api.spectrum import spectrum_controller
 from auth.api import auth_controller
 from containers.dependencies import DependencyContainer
 
-app = FastAPI(title="Refractometer API Gateway")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+    container.init_resources()
+    try:
+        yield
+    finally:
+        container.shutdown_resources()
+
+
+app = FastAPI(title="Refractometer API Gateway", lifespan=lifespan)
 app.include_router(main_router)
 
 

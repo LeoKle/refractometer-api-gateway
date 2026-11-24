@@ -68,9 +68,21 @@ class BaseSettings(PydanticBaseSettings):
 
     SPECTRUM_CLIENT_URL: str
     SPECTRUM_CLIENT_TIMEOUT: float = 2.0
+    SPECTRUM_CLIENT_MAX_CONNECTIONS: int = Field(
+        default=100, ge=1, description="Max concurrent connections in the httpx2 pool"
+    )
+    SPECTRUM_CLIENT_MAX_KEEPALIVE_CONNECTIONS: int = Field(
+        default=100, ge=0, description="Max idle keep-alive connections kept in the httpx2 pool"
+    )
 
     SAMPLE_CLIENT_URL: str
     SAMPLE_CLIENT_TIMEOUT: float = 2.0
+    SAMPLE_CLIENT_MAX_CONNECTIONS: int = Field(
+        default=100, ge=1, description="Max concurrent connections in the httpx2 pool"
+    )
+    SAMPLE_CLIENT_MAX_KEEPALIVE_CONNECTIONS: int = Field(
+        default=100, ge=0, description="Max idle keep-alive connections kept in the httpx2 pool"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

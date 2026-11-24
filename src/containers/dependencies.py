@@ -1,3 +1,6 @@
+from collections.abc import Iterator
+
+import httpx2
 from dependency_injector import containers, providers
 from redis import Redis
 from refractometer_common.image import ImageClient
@@ -12,6 +15,34 @@ from auth.redis_refresh_token_repository import RedisRefreshTokenRepository
 from containers.database import Database
 from settings import get_settings
 from users.user_repository import SQLUserRepository
+
+
+def _sample_client(
+    base_url: str,
+    timeout: float,
+    max_connections: int,
+    max_keepalive_connections: int,
+) -> Iterator[SampleClient]:
+    limits = httpx2.Limits(
+        max_connections=max_connections,
+        max_keepalive_connections=max_keepalive_connections,
+    )
+    with SampleClient(base_url=base_url, timeout=timeout, limits=limits) as client:
+        yield client
+
+
+def _spectrum_client(
+    base_url: str,
+    timeout: float,
+    max_connections: int,
+    max_keepalive_connections: int,
+) -> Iterator[SpectrumClient]:
+    limits = httpx2.Limits(
+        max_connections=max_connections,
+        max_keepalive_connections=max_keepalive_connections,
+    )
+    with SpectrumClient(base_url=base_url, timeout=timeout, limits=limits) as client:
+        yield client
 
 
 class DependencyContainer(containers.DeclarativeContainer):
@@ -63,14 +94,20 @@ class DependencyContainer(containers.DeclarativeContainer):
         timeout=config.QUEUE_CLIENT_TIMEOUT,
     )
 
-    spectrum_client = providers.Factory(
-        SpectrumClient,
+    # One long-lived client per service so the httpx2 connection pool is shared across requests;
+    # closed via DependencyContainer.shutdown_resources() on app shutdown.
+    spectrum_client = providers.Resource(
+        _spectrum_client,
         base_url=config.SPECTRUM_CLIENT_URL,
         timeout=config.SPECTRUM_CLIENT_TIMEOUT,
+        max_connections=config.SPECTRUM_CLIENT_MAX_CONNECTIONS,
+        max_keepalive_connections=config.SPECTRUM_CLIENT_MAX_KEEPALIVE_CONNECTIONS,
     )
 
-    sample_client = providers.Factory(
-        SampleClient,
+    sample_client = providers.Resource(
+        _sample_client,
         base_url=config.SAMPLE_CLIENT_URL,
         timeout=config.SAMPLE_CLIENT_TIMEOUT,
+        max_connections=config.SAMPLE_CLIENT_MAX_CONNECTIONS,
+        max_keepalive_connections=config.SAMPLE_CLIENT_MAX_KEEPALIVE_CONNECTIONS,
     )
