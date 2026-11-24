@@ -29,6 +29,7 @@ spec:
         # Applies the alembic migrations (users table) before the gateway starts.
         - name: migrate
           image: ghcr.io/leokle/refractometer-api-gateway:latest
+          imagePullPolicy: Always
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
@@ -78,8 +79,8 @@ spec:
             - "8000"
             - --app-dir
             - src
-            # - --workers
-            # - "4"
+            - --workers
+            - "4"
             - --loop
             - "uvloop"
             - --http
@@ -89,6 +90,8 @@ spec:
             - "warning"
             - --backlog
             - "4096"
+            - --timeout-keep-alive
+            - "30"
           ports:
             - containerPort: 8000
           envFrom:

@@ -20,7 +20,7 @@ metadata:
   labels:
     app: parameter-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: parameter-service
@@ -51,6 +51,8 @@ spec:
             - "warning"
             - --backlog
             - "4096"
+            - --timeout-keep-alive
+            - "30"
           ports:
             - containerPort: 8000
           env:
@@ -59,5 +61,5 @@ spec:
             - name: WEB_CONCURRENCY
               value: "4"
           resources:
-            requests: { cpu: "1", memory: 1024Mi }
-            limits: { cpu: "1", memory: 1024Mi }
+            requests: { cpu: "1", memory: 1Gi }
+            limits: { cpu: "1", memory: 1Gi }
