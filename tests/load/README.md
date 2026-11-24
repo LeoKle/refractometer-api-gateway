@@ -38,3 +38,7 @@ kubectl rollout restart deploy/parameter-service
 ```
 K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_EXPORT=html-report.html k6 run parameter/test_parameter_service.ts -e BASE_URL=http://192.168.178.240:30081 -e VUS=10 --out 'web-dashboard'
 ```
+
+### Watch
+
+```watch -n 5 "kubectl top pod -l 'app in (parameter-service,mongo-parameter)'; echo; kubectl top node"```
